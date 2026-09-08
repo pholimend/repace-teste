@@ -1437,7 +1437,19 @@ let onboardingEditing = false;
 
 function loadRepaceProfile(){ return safeParseJSON(localStorage.getItem(REPACE_PROFILE_KEY), null); }
 function saveRepaceProfile(profile){ localStorage.setItem(REPACE_PROFILE_KEY, JSON.stringify(profile)); }
-function mostrarEntradaRepace(){ const entry=el('#repace-entry'); if(entry) entry.classList.add('visivel'); }
+function atualizarEntradaRepace(){
+  const meta=loadRepaceMeta();
+  const continuar=el('#entry-continue');
+  const desc=el('#entry-description');
+  const temTreinoAtivo=meta?.setupStatus==='ready';
+  if(continuar) continuar.hidden=!temTreinoAtivo;
+  if(desc){
+    desc.textContent=temTreinoAtivo
+      ? 'Continue seu treino atual, crie um novo perfil ou restaure um backup.'
+      : 'Comece um programa personalizado ou retome um treino salvo em backup.';
+  }
+}
+function mostrarEntradaRepace(){ const entry=el('#repace-entry'); if(entry){ atualizarEntradaRepace(); entry.classList.add('visivel'); } }
 function esconderEntradaRepace(){ const entry=el('#repace-entry'); if(entry) entry.classList.remove('visivel'); }
 
 function novoDraftPerfil(){
@@ -1547,6 +1559,7 @@ function entrarNoPlanoBase(){
 }
 function iniciarImportacaoPelaEntrada(){ const input=el('#entry-backup-input'); if(input) input.click(); }
 
+el('#entry-continue').addEventListener('click',()=>{ esconderEntradaRepace(); renderAll(); ajustarEspacoRodape(); });
 el('#entry-new').addEventListener('click',()=>abrirOnboardingRepace(false));
 el('#entry-resume').addEventListener('click',iniciarImportacaoPelaEntrada);
 el('#onboarding-fechar').addEventListener('click',fecharOnboardingRepace);
@@ -1561,8 +1574,9 @@ el('#entry-backup-input').addEventListener('change',(e)=>{ const file=e.target.f
 
 garantirFundacaoRepace();
 renderAll();
-if (loadRepaceMeta().setupStatus === 'ready') esconderEntradaRepace();
-else mostrarEntradaRepace();
+// A tela inicial do REPACE é sempre o ponto de entrada ao abrir/recarregar o app.
+// Se houver um treino ativo, ela oferece 'Continuar treino' sem apagar o estado atual.
+mostrarEntradaRepace();
 ajustarEspacoRodape();
 
 if ('serviceWorker' in navigator) {

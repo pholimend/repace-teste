@@ -1,4 +1,4 @@
-const CACHE_NAME = 'repace-v2-profile';
+const CACHE_NAME = 'repace-v2-1-home';
 const APP_SHELL = [
   './',
   './index.html',
