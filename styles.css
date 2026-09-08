@@ -983,3 +983,170 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 /* A prévia de restauração precisa ficar acima da tela de boas-vindas. */
 #backup-preview-backdrop{z-index:120;}
 #backup-preview-sheet{z-index:121;}
+
+/* ========================================================================
+   REPACE — Fase 2: entrevista e perfil
+   ======================================================================== */
+.onboarding-sheet{
+  height:min(92dvh,820px);
+  max-height:92dvh;
+}
+.onboarding-topo{position:relative;}
+.onboarding-back{visibility:hidden;}
+.onboarding-progress{
+  height:3px;
+  background:#222A30;
+  overflow:hidden;
+  flex:0 0 auto;
+}
+.onboarding-progress span{
+  display:block;
+  height:100%;
+  width:0;
+  background:var(--strength);
+  transition:width .18s ease;
+}
+.onboarding-conteudo{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  padding-top:22px;
+}
+.onboarding-step-count{
+  margin-bottom:8px;
+  color:var(--strength);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.15em;
+}
+.onboarding-conteudo h2{
+  margin:0 0 7px;
+  font-size:24px;
+  line-height:1.15;
+  letter-spacing:-.03em;
+}
+.onboarding-conteudo>p{
+  margin:0 0 20px;
+  color:var(--text-dim);
+  font-size:13.5px;
+  line-height:1.5;
+}
+.onboarding-options{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.onboarding-option{
+  width:100%;
+  min-height:52px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:13px 14px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  background:var(--surface);
+  color:var(--text);
+  text-align:left;
+  font-size:14px;
+  font-weight:650;
+}
+.onboarding-option.selecionada{
+  border-color:var(--strength);
+  background:var(--strength-dim);
+}
+.option-check{opacity:0;color:var(--strength);}
+.onboarding-option.selecionada .option-check{opacity:1;}
+.weekday-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:8px;
+}
+.weekday-choice{
+  min-height:48px;
+  border:1px solid var(--border);
+  border-radius:13px;
+  background:var(--surface);
+  color:var(--text-dim);
+  font-size:13px;
+  font-weight:750;
+}
+.weekday-choice.selecionada{
+  border-color:var(--strength);
+  background:var(--strength-dim);
+  color:var(--strength);
+}
+.onboarding-input{
+  width:100%;
+  min-height:52px;
+  padding:13px 14px;
+  border:1px solid var(--border);
+  border-radius:14px;
+  outline:none;
+  background:var(--surface);
+  color:var(--text);
+  font:inherit;
+  font-size:16px;
+}
+.onboarding-input:focus{border-color:var(--strength);}
+.onboarding-textarea{min-height:112px;resize:vertical;line-height:1.45;}
+.onboarding-number-wrap{position:relative;}
+.onboarding-number-wrap .onboarding-input{padding-right:62px;}
+.onboarding-number-wrap>span{
+  position:absolute;right:15px;top:50%;transform:translateY(-50%);
+  color:var(--text-dim);font-size:13px;
+}
+.onboarding-actions{
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+  margin-top:24px;
+  padding-bottom:calc(4px + var(--safe-bottom));
+}
+.onboarding-actions .entry-btn:disabled{opacity:.38;cursor:not-allowed;}
+.profile-summary{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin:2px 0 18px;
+}
+.profile-summary>div{
+  min-width:0;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:13px;
+  background:var(--surface);
+}
+.profile-summary span{
+  display:block;
+  margin-bottom:4px;
+  color:var(--text-dim);
+  font-size:10.5px;
+}
+.profile-summary b{
+  display:block;
+  overflow-wrap:anywhere;
+  font-size:12.5px;
+  line-height:1.35;
+}
+.profile-summary .summary-wide{grid-column:1/-1;}
+.profile-summary.compact{margin-top:14px;}
+.perfil-hero{
+  margin-bottom:4px;
+  padding:18px;
+  border:1px solid var(--border);
+  border-radius:16px;
+  background:var(--surface);
+}
+.perfil-hero h2{margin:3px 0 5px;font-size:23px;letter-spacing:-.025em;}
+.perfil-hero p{margin:0;color:var(--text-dim);font-size:12.5px;line-height:1.45;}
+#perfil-sheet{z-index:111;}
+#perfil-backdrop{z-index:110;}
+
+@media (max-width:390px){
+  .onboarding-sheet{height:94dvh;max-height:94dvh;}
+  .weekday-grid{grid-template-columns:repeat(4,1fr);gap:6px;}
+  .weekday-choice{min-height:45px;font-size:12px;}
+  .profile-summary{gap:6px;}
+}

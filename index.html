@@ -37,20 +37,23 @@
 
 <div id="onboarding-backdrop" class="mais-backdrop"></div>
 <div id="onboarding-sheet" class="mais-sheet onboarding-sheet">
-  <div class="mais-topo">
-    <span>Novo treino</span>
+  <div class="mais-topo onboarding-topo">
+    <button id="onboarding-voltar" class="topo-icon-btn onboarding-back" aria-label="Voltar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <span id="onboarding-topo-titulo">Seu perfil</span>
     <button id="onboarding-fechar" class="topo-icon-btn" aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
-  <div class="mais-conteudo onboarding-conteudo">
-    <div class="onboarding-kicker">PRÓXIMA ETAPA</div>
-    <h2>Vamos montar seu programa</h2>
-    <p>A entrevista personalizada será construída na próxima fase. Ela vai considerar rotina, experiência, objetivos, disponibilidade e preferências antes de gerar os blocos do treino.</p>
-    <div class="onboarding-preview">
-      <span>Perfil</span><span>→</span><span>Programa</span><span>→</span><span>Blocos</span><span>→</span><span>Semanas</span>
-    </div>
-    <button id="onboarding-demo" class="btn-backup onboarding-demo">Explorar o plano-base atual</button>
-    <p class="meta-mini">Este botão existe apenas nesta fase de desenvolvimento para manter o programa atual acessível enquanto construímos a entrevista.</p>
+  <div class="onboarding-progress"><span id="onboarding-progress-bar"></span></div>
+  <div id="onboarding-conteudo" class="mais-conteudo onboarding-conteudo"></div>
+</div>
+
+<div id="perfil-backdrop" class="mais-backdrop"></div>
+<div id="perfil-sheet" class="mais-sheet">
+  <div class="mais-topo">
+    <button id="perfil-voltar" class="mais-topo-voltar topo-icon-btn" aria-label="Voltar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <span>Meu perfil</span>
+    <button id="perfil-fechar" class="topo-icon-btn" aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </div>
+  <div id="perfil-conteudo" class="mais-conteudo"></div>
 </div>
 
 <header class="topbar">

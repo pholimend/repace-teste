@@ -30,7 +30,7 @@ const REPACE_PROGRAM_KEY = 'repace.program.v1';
 function loadRepaceMeta() {
   return safeParseJSON(localStorage.getItem(REPACE_META_KEY), {
     app: 'repace',
-    architectureVersion: 1,
+    architectureVersion: 2,
     setupStatus: 'not-started',
     programSource: null,
   });
@@ -217,7 +217,7 @@ function confirmarRestauracao() {
   saveRepaceMeta({
     ...(repace.meta || loadRepaceMeta()),
     app: 'repace',
-    architectureVersion: 1,
+    architectureVersion: 2,
     setupStatus: 'ready',
     programSource: 'imported',
   });
@@ -355,6 +355,7 @@ function uiIcon(nome, classe = '') {
     editar: '<path d="M4 20l4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10z"/><path d="M14.5 7.5l3 3"/>',
     lixeira: '<path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M7 7l1 13h8l1-13"/><path d="M10 11v5M14 11v5"/>',
     check: '<path d="M5 12.5l4 4L19 7"/>',
+    perfil: '<circle cx="12" cy="8" r="3.5"/><path d="M5.5 20c.7-4 3-6 6.5-6s5.8 2 6.5 6"/>',
   };
   return `<svg class="ui-icon ${classe}" viewBox="0 0 24 24" aria-hidden="true">${paths[nome] || ''}</svg>`;
 }
@@ -591,6 +592,14 @@ function renderMaisHub() {
   wrap.innerHTML = `
     <div class="mais-grupo-titulo">Ferramentas</div>
     <div class="ferramenta-lista">
+      <button class="ferramenta-item" id="ferramenta-perfil">
+        <span class="ferramenta-icone">${uiIcon('perfil')}</span>
+        <span class="ferramenta-texto">
+          <span class="ferramenta-titulo">Meu perfil</span>
+          <span class="ferramenta-sub">Preferências usadas para montar seu programa</span>
+        </span>
+        <span class="ferramenta-seta">${uiIcon('chevron')}</span>
+      </button>
       <button class="ferramenta-item" id="ferramenta-peso">
         <span class="ferramenta-icone">${uiIcon('peso')}</span>
         <span class="ferramenta-texto">
@@ -628,6 +637,7 @@ function renderMaisHub() {
       </button>
     </div>`;
 
+  el('#ferramenta-perfil').addEventListener('click', () => { fecharMais(); abrirPerfil(); });
   el('#ferramenta-peso').addEventListener('click', () => { fecharMais(); abrirPeso(); });
   el('#ferramenta-retomada').addEventListener('click', () => { fecharMais(); abrirRetomada(); });
   el('#ferramenta-backup').addEventListener('click', () => { fecharMais(); abrirBackup(); });
@@ -1397,54 +1407,155 @@ if ('ResizeObserver' in window) {
 }
 
 /* ========================================================================
-   REPACE — entrada e fundação para programas personalizados
+   REPACE — entrada + Fase 2: entrevista e perfil
    ======================================================================== */
 
-function mostrarEntradaRepace() {
-  const entry = el('#repace-entry');
-  if (entry) entry.classList.add('visivel');
+const ONBOARDING_STEPS = [
+  { key:'objetivo', title:'Qual é seu principal objetivo?', sub:'Escolha o que mais representa sua prioridade agora.', type:'single', options:[
+    ['hipertrofia','Ganhar massa muscular'], ['condicionamento','Melhorar condicionamento'], ['emagrecimento','Emagrecer / reduzir gordura'], ['hibrido','Musculação + corrida'], ['corrida','Melhorar na corrida'], ['saude','Saúde e disposição'] ] },
+  { key:'experiencia', title:'Qual é sua experiência com musculação?', sub:'Considere consistência e familiaridade com os exercícios.', type:'single', options:[
+    ['iniciante','Iniciante'], ['intermediario','Intermediário'], ['avancado','Avançado'] ] },
+  { key:'diasSemana', title:'Quantos dias por semana você consegue treinar?', sub:'Escolha uma frequência que caiba de verdade na sua rotina.', type:'single', options:[
+    [2,'2 dias'],[3,'3 dias'],[4,'4 dias'],[5,'5 dias'],[6,'6 dias'] ] },
+  { key:'diasDisponiveis', title:'Quais dias costumam funcionar melhor?', sub:'Pode selecionar mais de um. Depois o programa poderá distribuir as sessões nesses dias.', type:'multi', options:[
+    ['seg','Seg'],['ter','Ter'],['qua','Qua'],['qui','Qui'],['sex','Sex'],['sab','Sáb'],['dom','Dom'] ] },
+  { key:'duracao', title:'Quanto tempo você tem por sessão?', sub:'Use o tempo que normalmente consegue manter.', type:'single', options:[
+    [30,'Até 30 min'],[45,'~45 min'],[60,'~60 min'],[75,'~75 min'],[90,'~90 min'],[120,'Até 2 h'] ] },
+  { key:'ambiente', title:'Onde você vai treinar?', sub:'Isso define quais exercícios poderão entrar no programa.', type:'single', options:[
+    ['academia','Academia completa'],['academia-limitada','Academia/equipamentos limitados'],['casa','Em casa'] ] },
+  { key:'corrida', title:'Como a corrida entra no seu plano?', sub:'Escolha a opção mais próxima do que você quer fazer.', type:'single', options:[
+    ['nao','Não quero correr'],['comecar','Quero começar a correr'],['iniciante','Já corro, mas sou iniciante'],['regular','Já corro regularmente'] ] },
+  { key:'preferencias', title:'Alguma preferência importante?', sub:'Opcional. Cite exercícios que gosta, quer evitar ou alguma preferência de treino.', type:'text', placeholder:'Ex.: prefiro máquinas; não gosto de agachamento livre…' },
+  { key:'pausaDias', title:'Há quanto tempo você está sem treinar?', sub:'Isso ajuda a decidir se o início precisará de readaptação.', type:'number', placeholder:'0', suffix:'dias', min:0, max:3650 },
+  { key:'seguranca', title:'Como você está para começar?', sub:'Esta pergunta serve apenas para tornar a futura recomendação mais conservadora quando necessário.', type:'single', options:[
+    ['bem','Estou bem, sem dor ou limitação relevante'],['destreinado','Estou bem, mas me sinto destreinado'],['doenca-recente','Tive doença recente / ainda estou recuperando'],['dor-limitacao','Tenho dor, lesão ou limitação atual'] ] },
+];
+
+let onboardingStep = 0;
+let onboardingDraft = {};
+let onboardingEditing = false;
+
+function loadRepaceProfile(){ return safeParseJSON(localStorage.getItem(REPACE_PROFILE_KEY), null); }
+function saveRepaceProfile(profile){ localStorage.setItem(REPACE_PROFILE_KEY, JSON.stringify(profile)); }
+function mostrarEntradaRepace(){ const entry=el('#repace-entry'); if(entry) entry.classList.add('visivel'); }
+function esconderEntradaRepace(){ const entry=el('#repace-entry'); if(entry) entry.classList.remove('visivel'); }
+
+function novoDraftPerfil(){
+  const atual = loadRepaceProfile();
+  return atual ? JSON.parse(JSON.stringify(atual.answers || {})) : { diasDisponiveis:[] };
 }
-function esconderEntradaRepace() {
-  const entry = el('#repace-entry');
-  if (entry) entry.classList.remove('visivel');
-}
-function abrirOnboardingRepace() {
+function abrirOnboardingRepace(editando=false){
+  onboardingEditing = editando;
+  onboardingDraft = novoDraftPerfil();
+  onboardingStep = 0;
   el('#onboarding-sheet').classList.add('aberto');
   el('#onboarding-backdrop').classList.add('aberto');
+  renderOnboardingStep();
 }
-function fecharOnboardingRepace() {
+function fecharOnboardingRepace(){
   el('#onboarding-sheet').classList.remove('aberto');
   el('#onboarding-backdrop').classList.remove('aberto');
 }
-function entrarNoPlanoBase() {
-  const meta = loadRepaceMeta();
-  saveRepaceMeta({
-    ...meta,
-    app: 'repace',
-    architectureVersion: 1,
-    setupStatus: 'ready',
-    programSource: meta.programSource || 'legacy',
-  });
-  fecharOnboardingRepace();
-  esconderEntradaRepace();
-  renderAll();
-  ajustarEspacoRodape();
+function optionLabel(step, value){
+  const hit=(step.options||[]).find(o=>String(o[0])===String(value));
+  return hit ? hit[1] : (value ?? '—');
 }
-function iniciarImportacaoPelaEntrada() {
-  const input = el('#entry-backup-input');
-  if (input) input.click();
+function onboardingValue(step){ return onboardingDraft[step.key]; }
+function isStepValid(step){
+  const v=onboardingValue(step);
+  if(step.type==='multi') return Array.isArray(v) && v.length>0;
+  if(step.type==='text') return true;
+  if(step.type==='number') return v!=='' && v!==undefined && Number(v)>=0;
+  return v!==undefined && v!==null && v!=='';
+}
+function setOnboardingValue(key,value){ onboardingDraft[key]=value; }
+
+function renderOnboardingStep(){
+  const wrap=el('#onboarding-conteudo');
+  const total=ONBOARDING_STEPS.length+1;
+  const review=onboardingStep===ONBOARDING_STEPS.length;
+  el('#onboarding-topo-titulo').textContent = onboardingEditing ? 'Editar perfil' : 'Novo treino';
+  el('#onboarding-voltar').style.visibility = onboardingStep>0 ? 'visible' : 'hidden';
+  el('#onboarding-progress-bar').style.width = `${Math.round(((onboardingStep+1)/total)*100)}%`;
+  if(review){ renderOnboardingReview(); return; }
+  const step=ONBOARDING_STEPS[onboardingStep];
+  let control='';
+  if(step.type==='single'){
+    control=`<div class="onboarding-options">${step.options.map(([v,label])=>`<button class="onboarding-option ${String(onboardingValue(step))===String(v)?'selecionada':''}" data-value="${String(v)}"><span>${label}</span><span class="option-check">${uiIcon('check')}</span></button>`).join('')}</div>`;
+  } else if(step.type==='multi'){
+    const selected=Array.isArray(onboardingValue(step))?onboardingValue(step):[];
+    control=`<div class="weekday-grid">${step.options.map(([v,label])=>`<button class="weekday-choice ${selected.includes(v)?'selecionada':''}" data-value="${v}">${label}</button>`).join('')}</div>`;
+  } else if(step.type==='text'){
+    control=`<textarea id="onboarding-input" class="onboarding-input onboarding-textarea" maxlength="180" placeholder="${step.placeholder||''}">${onboardingValue(step)||''}</textarea><div class="meta-mini">Opcional · até 180 caracteres</div>`;
+  } else if(step.type==='number'){
+    control=`<div class="onboarding-number-wrap"><input id="onboarding-input" class="onboarding-input" type="number" inputmode="numeric" min="${step.min}" max="${step.max}" value="${onboardingValue(step)??''}" placeholder="${step.placeholder||''}"><span>${step.suffix||''}</span></div>`;
+  }
+  wrap.innerHTML=`<div class="onboarding-step-count">ETAPA ${onboardingStep+1} DE ${ONBOARDING_STEPS.length}</div><h2>${step.title}</h2><p>${step.sub}</p>${control}<div class="onboarding-actions"><button id="onboarding-continuar" class="entry-btn entry-primary" ${isStepValid(step)?'':'disabled'}>${onboardingStep===ONBOARDING_STEPS.length-1?'Revisar perfil':'Continuar'}</button></div>`;
+  if(step.type==='single') wrap.querySelectorAll('.onboarding-option').forEach(btn=>btn.onclick=()=>{ setOnboardingValue(step.key, step.options.find(o=>String(o[0])===btn.dataset.value)[0]); renderOnboardingStep(); });
+  if(step.type==='multi') wrap.querySelectorAll('.weekday-choice').forEach(btn=>btn.onclick=()=>{ const a=Array.isArray(onboardingDraft[step.key])?[...onboardingDraft[step.key]]:[]; const i=a.indexOf(btn.dataset.value); i>=0?a.splice(i,1):a.push(btn.dataset.value); setOnboardingValue(step.key,a); renderOnboardingStep(); });
+  const input=el('#onboarding-input');
+  if(input) input.addEventListener('input',()=>{ let v=input.value; if(step.type==='number') v=v===''?'':Math.max(step.min,Math.min(step.max,Number(v))); setOnboardingValue(step.key,v); const b=el('#onboarding-continuar'); if(b) b.disabled=!isStepValid(step); });
+  el('#onboarding-continuar').onclick=()=>{ if(!isStepValid(step)) return; onboardingStep++; renderOnboardingStep(); };
 }
 
-el('#entry-new').addEventListener('click', abrirOnboardingRepace);
-el('#entry-resume').addEventListener('click', iniciarImportacaoPelaEntrada);
-el('#onboarding-fechar').addEventListener('click', fecharOnboardingRepace);
-el('#onboarding-backdrop').addEventListener('click', fecharOnboardingRepace);
-el('#onboarding-demo').addEventListener('click', entrarNoPlanoBase);
-el('#entry-backup-input').addEventListener('change', (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (file) lidarComArquivoImportado(file);
-  e.target.value = '';
-});
+function renderOnboardingReview(){
+  const wrap=el('#onboarding-conteudo');
+  const a=onboardingDraft;
+  const rows=[
+    ['Objetivo',optionLabel(ONBOARDING_STEPS[0],a.objetivo)],
+    ['Experiência',optionLabel(ONBOARDING_STEPS[1],a.experiencia)],
+    ['Frequência',`${a.diasSemana} dias/semana`],
+    ['Dias',(a.diasDisponiveis||[]).map(v=>optionLabel(ONBOARDING_STEPS[3],v)).join(', ')||'—'],
+    ['Duração',optionLabel(ONBOARDING_STEPS[4],a.duracao)],
+    ['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],
+    ['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],
+    ['Pausa',`${a.pausaDias||0} dias`],
+    ['Estado atual',optionLabel(ONBOARDING_STEPS[9],a.seguranca)],
+  ];
+  wrap.innerHTML=`<div class="onboarding-step-count">REVISÃO</div><h2>Seu perfil está pronto</h2><p>Confira as respostas. O motor de treino será construído na próxima fase usando este perfil.</p><div class="profile-summary">${rows.map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}${a.preferencias?`<div class="summary-wide"><span>Preferências</span><b>${a.preferencias}</b></div>`:''}</div>${a.seguranca==='dor-limitacao'||a.seguranca==='doenca-recente'?'<div class="callout alerta">Seu perfil indica uma condição que exigirá uma recomendação mais conservadora. O REPACE não substitui avaliação profissional.</div>':''}<div class="onboarding-actions"><button id="onboarding-salvar" class="entry-btn entry-primary">Salvar perfil</button><button id="onboarding-revisar" class="entry-btn entry-secondary">Voltar e revisar</button></div>`;
+  el('#onboarding-salvar').onclick=salvarPerfilOnboarding;
+  el('#onboarding-revisar').onclick=()=>{ onboardingStep=ONBOARDING_STEPS.length-1; renderOnboardingStep(); };
+}
+
+function salvarPerfilOnboarding(){
+  const antigo=loadRepaceProfile();
+  const now=new Date().toISOString();
+  const profile={ id:antigo?.id||gerarId('perfil'), schemaVersion:1, createdAt:antigo?.createdAt||now, updatedAt:now, answers:JSON.parse(JSON.stringify(onboardingDraft)) };
+  saveRepaceProfile(profile);
+  const meta=loadRepaceMeta();
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:2,setupStatus:'profile-ready',programSource:meta.programSource||null});
+  fecharOnboardingRepace();
+  mostrarPerfilPronto();
+}
+
+function mostrarPerfilPronto(){
+  const wrap=el('#perfil-conteudo');
+  const p=loadRepaceProfile();
+  if(!p){ wrap.innerHTML='<div class="empty-state"><b>Nenhum perfil criado</b><span>Crie seu perfil para preparar um novo programa.</span><button id="perfil-criar" class="btn-backup">Criar perfil</button></div>'; el('#perfil-criar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(false)}; return; }
+  const a=p.answers||{};
+  wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</h2><p>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(ONBOARDING_STEPS[4],a.duracao)}</p></div><div class="profile-summary compact">${[['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(ONBOARDING_STEPS[9],a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div><div class="callout"><b>Próxima fase</b><br>Seu perfil foi salvo. O Motor REPACE ainda não gera um novo programa nesta versão; ele será implementado usando estas respostas.</div><div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Explorar plano-base</button></div>`;
+  el('#perfil-editar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(true)};
+  el('#perfil-plano-base').onclick=()=>{fecharPerfil();entrarNoPlanoBase()};
+}
+function abrirPerfil(){ mostrarPerfilPronto(); el('#perfil-sheet').classList.add('aberto'); el('#perfil-backdrop').classList.add('aberto'); }
+function fecharPerfil(){ el('#perfil-sheet').classList.remove('aberto'); el('#perfil-backdrop').classList.remove('aberto'); }
+
+function entrarNoPlanoBase(){
+  const meta=loadRepaceMeta();
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:2,setupStatus:'ready',programSource:meta.programSource||'legacy'});
+  fecharOnboardingRepace(); fecharPerfil(); esconderEntradaRepace(); renderAll(); ajustarEspacoRodape();
+}
+function iniciarImportacaoPelaEntrada(){ const input=el('#entry-backup-input'); if(input) input.click(); }
+
+el('#entry-new').addEventListener('click',()=>abrirOnboardingRepace(false));
+el('#entry-resume').addEventListener('click',iniciarImportacaoPelaEntrada);
+el('#onboarding-fechar').addEventListener('click',fecharOnboardingRepace);
+el('#onboarding-backdrop').addEventListener('click',fecharOnboardingRepace);
+el('#onboarding-voltar').addEventListener('click',()=>{ if(onboardingStep>0){onboardingStep--;renderOnboardingStep();} });
+el('#perfil-fechar').addEventListener('click',fecharPerfil);
+el('#perfil-backdrop').addEventListener('click',fecharPerfil);
+el('#perfil-voltar').addEventListener('click',()=>{fecharPerfil();abrirMais();});
+el('#entry-backup-input').addEventListener('change',(e)=>{ const file=e.target.files&&e.target.files[0]; if(file) lidarComArquivoImportado(file); e.target.value=''; });
 
 /* ---------------------- init ---------------------- */
 
