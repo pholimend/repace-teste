@@ -30,7 +30,7 @@ const REPACE_PROGRAM_KEY = 'repace.program.v1';
 function loadRepaceMeta() {
   return safeParseJSON(localStorage.getItem(REPACE_META_KEY), {
     app: 'repace',
-    architectureVersion: 2,
+    architectureVersion: 3,
     setupStatus: 'not-started',
     programSource: null,
   });
@@ -217,7 +217,7 @@ function confirmarRestauracao() {
   saveRepaceMeta({
     ...(repace.meta || loadRepaceMeta()),
     app: 'repace',
-    architectureVersion: 2,
+    architectureVersion: 3,
     setupStatus: 'ready',
     programSource: 'imported',
   });
@@ -1407,7 +1407,7 @@ if ('ResizeObserver' in window) {
 }
 
 /* ========================================================================
-   REPACE — entrada + Fase 2: entrevista e perfil
+   REPACE — entrada + Fase 2/3: entrevista, perfil e Motor REPACE
    ======================================================================== */
 
 const ONBOARDING_STEPS = [
@@ -1417,7 +1417,7 @@ const ONBOARDING_STEPS = [
     ['iniciante','Iniciante'], ['intermediario','Intermediário'], ['avancado','Avançado'] ] },
   { key:'diasSemana', title:'Quantos dias por semana você consegue treinar?', sub:'Escolha uma frequência que caiba de verdade na sua rotina.', type:'single', options:[
     [2,'2 dias'],[3,'3 dias'],[4,'4 dias'],[5,'5 dias'],[6,'6 dias'] ] },
-  { key:'diasDisponiveis', title:'Quais dias costumam funcionar melhor?', sub:'Pode selecionar mais de um. Depois o programa poderá distribuir as sessões nesses dias.', type:'multi', options:[
+  { key:'diasDisponiveis', title:'Quais dias costumam funcionar melhor?', sub:'Selecione pelo menos a quantidade de dias escolhida na etapa anterior. O motor distribuirá as sessões entre eles.', type:'multi', options:[
     ['seg','Seg'],['ter','Ter'],['qua','Qua'],['qui','Qui'],['sex','Sex'],['sab','Sáb'],['dom','Dom'] ] },
   { key:'duracao', title:'Quanto tempo você tem por sessão?', sub:'Use o tempo que normalmente consegue manter.', type:'single', options:[
     [30,'Até 30 min'],[45,'~45 min'],[60,'~60 min'],[75,'~75 min'],[90,'~90 min'],[120,'Até 2 h'] ] },
@@ -1431,6 +1431,146 @@ const ONBOARDING_STEPS = [
     ['bem','Estou bem, sem dor ou limitação relevante'],['destreinado','Estou bem, mas me sinto destreinado'],['doenca-recente','Tive doença recente / ainda estou recuperando'],['dor-limitacao','Tenho dor, lesão ou limitação atual'] ] },
 ];
 
+
+/* ---------------------- Fase 3 — Motor REPACE ---------------------- */
+const REPACE_ENGINE_VERSION = 1;
+
+const EXERCISE_LIBRARY = {
+  academia: {
+    fullA: [
+      ['Leg press 45°',3,'8–12'],['Supino reto (máquina ou halteres)',3,'8–12'],['Puxada frente',3,'8–12'],['Cadeira flexora',2,'10–15'],['Elevação lateral',2,'12–15'],['Prancha abdominal',3,'30–45s']
+    ],
+    fullB: [
+      ['Terra romeno com halteres',3,'8–12'],['Remada sentada',3,'8–12'],['Desenvolvimento de ombros',3,'8–12'],['Cadeira extensora',2,'10–15'],['Rosca direta',2,'10–15'],['Panturrilha',3,'12–20']
+    ],
+    upper: [
+      ['Supino reto',3,'6–10'],['Puxada frente',3,'6–10'],['Remada sentada',3,'8–12'],['Desenvolvimento de ombros',2,'8–12'],['Elevação lateral',2,'12–15'],['Tríceps na polia',2,'10–15'],['Rosca direta',2,'10–15']
+    ],
+    lower: [
+      ['Agachamento no smith ou leg press',3,'6–10'],['Terra romeno',3,'8–12'],['Cadeira extensora',2,'10–15'],['Cadeira flexora',2,'10–15'],['Elevação pélvica',3,'8–12'],['Panturrilha',3,'12–20'],['Prancha',3,'30–60s']
+    ],
+  },
+  'academia-limitada': {
+    fullA: [['Agachamento goblet',3,'8–12'],['Supino com halteres',3,'8–12'],['Remada unilateral',3,'8–12'],['Terra romeno com halteres',2,'10–12'],['Elevação lateral',2,'12–15'],['Prancha',3,'30–45s']],
+    fullB: [['Afundo com halteres',3,'8–12'],['Desenvolvimento com halteres',3,'8–12'],['Remada com halteres',3,'8–12'],['Elevação pélvica',2,'10–15'],['Rosca direta',2,'10–15'],['Panturrilha',3,'12–20']],
+  },
+  casa: {
+    fullA: [['Agachamento com peso corporal/mochila',3,'10–15'],['Flexão de braços',3,'6–15'],['Remada com mochila/elástico',3,'10–15'],['Ponte de glúteos',3,'12–20'],['Elevação lateral com elástico/garrafas',2,'12–20'],['Prancha',3,'30–45s']],
+    fullB: [['Afundo estacionário',3,'8–12'],['Flexão inclinada ou tradicional',3,'6–15'],['Terra romeno com mochila',3,'10–15'],['Remada unilateral com mochila',3,'10–15'],['Rosca com elástico/mochila',2,'10–15'],['Panturrilha unilateral',3,'12–20']],
+  }
+};
+
+function makeExercise([nome,series,reps], effort='RIR 2–3'){
+  return { id: gerarId('ex'), name:nome, prescription:{series,reps,effort,rest:'60–120s'} };
+}
+function sessionStrength(title, list, effort='RIR 2–3'){
+  return { id:gerarId('sess'), type:'strength', title, warmup:'5–10 min de mobilidade/cardio leve + séries de aproximação', exercises:list.map(x=>makeExercise(x,effort)) };
+}
+function sessionRun(level, week, focus='base'){
+  if(level==='comecar'){
+    const stage=Math.min(3,Math.max(1,Math.ceil(week/2)));
+    const prescriptions={1:'1 min trote leve + 2 min caminhada × 6–8',2:'1 min trote leve + 1 min caminhada × 8–10',3:'2 min trote leve + 1 min caminhada × 6–8'};
+    return { id:gerarId('sess'), type:'run', title:'Corrida — adaptação', rpe:'≤6/10', prescription:prescriptions[stage], warmup:'5 min caminhada leve', cooldown:'5 min caminhada leve' };
+  }
+  if(level==='iniciante') return { id:gerarId('sess'), type:'run', title:'Corrida leve', rpe:'5–6/10', prescription: week<=2?'20–25 min leve':'25–35 min leve', warmup:'5 min caminhada/trote leve', cooldown:'5 min leve' };
+  return { id:gerarId('sess'), type:'run', title:focus==='quality'?'Corrida — estímulo controlado':'Corrida leve', rpe:focus==='quality'?'6–7/10':'5–6/10', prescription:focus==='quality'?'6 × 2 min moderado / 2 min leve':'30–45 min leve', warmup:'8–10 min leve', cooldown:'5–10 min leve' };
+}
+function evenlyPickDays(days, count){
+  const order=['seg','ter','qua','qui','sex','sab','dom'];
+  const src=order.filter(d=>days.includes(d));
+  if(!src.length) return order.slice(0,count);
+  if(count>=src.length) return src.slice(0,count);
+  if(count===1) return [src[Math.floor(src.length/2)]];
+  const out=[];
+  for(let i=0;i<count;i++) out.push(src[Math.round(i*(src.length-1)/(count-1))]);
+  return [...new Set(out)].slice(0,count);
+}
+function determinePlanFamily(a){
+  const runWanted=a.corrida!=='nao' || ['hibrido','corrida','condicionamento'].includes(a.objetivo);
+  if(a.objetivo==='corrida') return 'run-focus';
+  if(runWanted) return 'hybrid';
+  if(a.experiencia==='iniciante' || Number(a.diasSemana)<=3) return 'full-body';
+  return 'upper-lower';
+}
+function determineStructure(a){
+  const days=Math.max(2,Math.min(6,Number(a.diasSemana)||3));
+  const family=determinePlanFamily(a);
+  let strength=3, run=0;
+  if(family==='full-body') strength=Math.min(3,days);
+  if(family==='upper-lower') strength=Math.min(days,4);
+  if(family==='hybrid'){
+    if(days<=3){strength=2;run=1;} else if(days===4){strength=2;run=2;} else {strength=3;run=Math.min(2,days-3);}
+  }
+  if(family==='run-focus'){
+    run=days<=3?2:Math.min(4,days-2); strength=Math.max(1,days-run);
+  }
+  const needsAdapt= a.experiencia==='iniciante' || Number(a.pausaDias)>=21 || a.seguranca==='destreinado';
+  return {family,days,strength,run,needsAdapt};
+}
+function familyLabel(f){ return ({'full-body':'Full Body','upper-lower':'Upper / Lower','hybrid':'Híbrido — força + corrida','run-focus':'Corrida + força de suporte'})[f]||f; }
+
+function generateRepaceProgram(profile){
+  const a=profile.answers||{};
+  const s=determineStructure(a);
+  const safetyHold=['dor-limitacao','doenca-recente'].includes(a.seguranca);
+  const available=(a.diasDisponiveis||[]);
+  const chosen=evenlyPickDays(available,s.days);
+  const strengthDays=evenlyPickDays(chosen,s.strength);
+  const runDays=chosen.filter(d=>!strengthDays.includes(d)).slice(0,s.run);
+  while(runDays.length<s.run){
+    const extra=chosen.find(d=>!runDays.includes(d) && !strengthDays.includes(d));
+    if(!extra) break; runDays.push(extra);
+  }
+  const lib=EXERCISE_LIBRARY[a.ambiente]||EXERCISE_LIBRARY.academia;
+  const blocks=[];
+  const blockDefs=[];
+  if(s.needsAdapt) blockDefs.push({name:'Fundação',weeks:4,focus:'Adaptação técnica e construção de rotina',effort:'RIR 3–4'});
+  blockDefs.push({name:s.family==='run-focus'?'Base aeróbia':'Desenvolvimento',weeks:6,focus:s.family==='run-focus'?'Construir volume aeróbio com força de suporte':'Progressão consistente de força, volume e condicionamento',effort:'RIR 2–3'});
+  blockDefs.push({name:'Progressão',weeks:6,focus:s.family==='run-focus'?'Consolidar corrida e introduzir estímulos controlados':'Aumentar gradualmente a dificuldade mantendo técnica e recuperação',effort:'RIR 1–3'});
+
+  blockDefs.forEach((bd,bi)=>{
+    const weeks=[];
+    for(let w=1;w<=bd.weeks;w++){
+      const days=chosen.map((day,di)=>{
+        let session={ id:gerarId('sess'), type:'rest', title:'Recuperação / atividade leve', note:'Sem sessão estruturada neste dia.' };
+        if(strengthDays.includes(day)){
+          const idx=strengthDays.indexOf(day);
+          if(s.family==='upper-lower' && lib.upper && lib.lower) session=sessionStrength(idx%2===0?'Upper — membros superiores':'Lower — membros inferiores',idx%2===0?lib.upper:lib.lower,bd.effort);
+          else session=sessionStrength(idx%2===0?'Full Body A':'Full Body B',idx%2===0?lib.fullA:lib.fullB,bd.effort);
+        } else if(runDays.includes(day)){
+          const focus=(bi>=2 && a.corrida==='regular' && runDays.indexOf(day)===1)?'quality':'base';
+          session=sessionRun(a.corrida==='nao'?'comecar':a.corrida,w,focus);
+        }
+        return { id:`${day}-${w}`, weekday:day, session };
+      });
+      weeks.push({ id:`w${w}`, number:w, days });
+    }
+    blocks.push({ id:`b${bi+1}`, number:bi+1, name:bd.name, info:bd.focus, weeks });
+  });
+
+  const status=safetyHold?'attention':'ready';
+  return {
+    id:gerarId('program'), schemaVersion:1, engineVersion:REPACE_ENGINE_VERSION, source:'generated', status,
+    name:`Plano ${familyLabel(s.family)}`, goal:a.objetivo, family:s.family,
+    summary:{ daysPerWeek:s.days, strengthSessions:s.strength, runSessions:s.run, sessionMinutes:Number(a.duracao)||60, environment:a.ambiente, adaptation:s.needsAdapt },
+    schedule:{ selectedDays:chosen, strengthDays, runDays }, blocks,
+    safety: safetyHold ? { level:'attention', message:a.seguranca==='dor-limitacao'?'Há dor/lesão/limitação atual informada. O programa foi apenas estruturado e não deve ser usado como liberação para treinar; procure avaliação adequada antes de progredir.':'Há recuperação de doença recente informada. Retome apenas quando estiver recuperado e, se houver sintomas persistentes ou orientação médica específica, siga avaliação profissional.' } : {level:'standard'},
+    createdAt:new Date().toISOString(), profileId:profile.id
+  };
+}
+function saveGeneratedProgram(program){ localStorage.setItem(REPACE_PROGRAM_KEY,JSON.stringify(program)); }
+function loadRepaceProgram(){ return safeParseJSON(localStorage.getItem(REPACE_PROGRAM_KEY),null); }
+function programSummaryRows(p){
+  if(!p?.summary) return [];
+  return [
+    ['Estrutura',familyLabel(p.family)],
+    ['Frequência',`${p.summary.daysPerWeek} dias/semana`],
+    ['Musculação',`${p.summary.strengthSessions} sessões/semana`],
+    ['Corrida',`${p.summary.runSessions} sessões/semana`],
+    ['Duração',`~${p.summary.sessionMinutes} min/sessão`],
+    ['Blocos',`${p.blocks?.length||0}`],
+  ];
+}
 let onboardingStep = 0;
 let onboardingDraft = {};
 let onboardingEditing = false;
@@ -1441,11 +1581,12 @@ function atualizarEntradaRepace(){
   const meta=loadRepaceMeta();
   const continuar=el('#entry-continue');
   const desc=el('#entry-description');
-  const temTreinoAtivo=meta?.setupStatus==='ready';
+  const temTreinoAtivo=['ready','program-ready'].includes(meta?.setupStatus);
   if(continuar) continuar.hidden=!temTreinoAtivo;
+  if(continuar) continuar.textContent = meta?.setupStatus==='program-ready' ? 'Ver plano criado' : 'Continuar treino';
   if(desc){
     desc.textContent=temTreinoAtivo
-      ? 'Continue seu treino atual, crie um novo perfil ou restaure um backup.'
+      ? (meta?.setupStatus==='program-ready' ? 'Seu programa foi criado. Veja o plano ou crie um novo perfil.' : 'Continue seu treino atual, crie um novo perfil ou restaure um backup.')
       : 'Comece um programa personalizado ou retome um treino salvo em backup.';
   }
 }
@@ -1475,7 +1616,7 @@ function optionLabel(step, value){
 function onboardingValue(step){ return onboardingDraft[step.key]; }
 function isStepValid(step){
   const v=onboardingValue(step);
-  if(step.type==='multi') return Array.isArray(v) && v.length>0;
+  if(step.type==='multi'){ const minimo=step.key==='diasDisponiveis'?Number(onboardingDraft.diasSemana||1):1; return Array.isArray(v) && v.length>=minimo; }
   if(step.type==='text') return true;
   if(step.type==='number') return v!=='' && v!==undefined && Number(v)>=0;
   return v!==undefined && v!==null && v!=='';
@@ -1524,7 +1665,7 @@ function renderOnboardingReview(){
     ['Pausa',`${a.pausaDias||0} dias`],
     ['Estado atual',optionLabel(ONBOARDING_STEPS[9],a.seguranca)],
   ];
-  wrap.innerHTML=`<div class="onboarding-step-count">REVISÃO</div><h2>Seu perfil está pronto</h2><p>Confira as respostas. O motor de treino será construído na próxima fase usando este perfil.</p><div class="profile-summary">${rows.map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}${a.preferencias?`<div class="summary-wide"><span>Preferências</span><b>${a.preferencias}</b></div>`:''}</div>${a.seguranca==='dor-limitacao'||a.seguranca==='doenca-recente'?'<div class="callout alerta">Seu perfil indica uma condição que exigirá uma recomendação mais conservadora. O REPACE não substitui avaliação profissional.</div>':''}<div class="onboarding-actions"><button id="onboarding-salvar" class="entry-btn entry-primary">Salvar perfil</button><button id="onboarding-revisar" class="entry-btn entry-secondary">Voltar e revisar</button></div>`;
+  wrap.innerHTML=`<div class="onboarding-step-count">REVISÃO</div><h2>Seu perfil está pronto</h2><p>Confira as respostas. Ao salvar, o Motor REPACE vai montar a estrutura do seu programa.</p><div class="profile-summary">${rows.map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}${a.preferencias?`<div class="summary-wide"><span>Preferências</span><b>${a.preferencias}</b></div>`:''}</div>${a.seguranca==='dor-limitacao'||a.seguranca==='doenca-recente'?'<div class="callout alerta">Seu perfil indica uma condição que exigirá uma recomendação mais conservadora. O REPACE não substitui avaliação profissional.</div>':''}<div class="onboarding-actions"><button id="onboarding-salvar" class="entry-btn entry-primary">Salvar perfil</button><button id="onboarding-revisar" class="entry-btn entry-secondary">Voltar e revisar</button></div>`;
   el('#onboarding-salvar').onclick=salvarPerfilOnboarding;
   el('#onboarding-revisar').onclick=()=>{ onboardingStep=ONBOARDING_STEPS.length-1; renderOnboardingStep(); };
 }
@@ -1534,10 +1675,15 @@ function salvarPerfilOnboarding(){
   const now=new Date().toISOString();
   const profile={ id:antigo?.id||gerarId('perfil'), schemaVersion:1, createdAt:antigo?.createdAt||now, updatedAt:now, answers:JSON.parse(JSON.stringify(onboardingDraft)) };
   saveRepaceProfile(profile);
+  const program=generateRepaceProgram(profile);
+  saveGeneratedProgram(program);
   const meta=loadRepaceMeta();
-  saveRepaceMeta({...meta,app:'repace',architectureVersion:2,setupStatus:'profile-ready',programSource:meta.programSource||null});
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:3,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
   fecharOnboardingRepace();
   mostrarPerfilPronto();
+  el('#perfil-sheet').classList.add('aberto');
+  el('#perfil-backdrop').classList.add('aberto');
+  mostrarToast('✓ Programa criado');
 }
 
 function mostrarPerfilPronto(){
@@ -1545,7 +1691,10 @@ function mostrarPerfilPronto(){
   const p=loadRepaceProfile();
   if(!p){ wrap.innerHTML='<div class="empty-state"><b>Nenhum perfil criado</b><span>Crie seu perfil para preparar um novo programa.</span><button id="perfil-criar" class="btn-backup">Criar perfil</button></div>'; el('#perfil-criar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(false)}; return; }
   const a=p.answers||{};
-  wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</h2><p>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(ONBOARDING_STEPS[4],a.duracao)}</p></div><div class="profile-summary compact">${[['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(ONBOARDING_STEPS[9],a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div><div class="callout"><b>Próxima fase</b><br>Seu perfil foi salvo. O Motor REPACE ainda não gera um novo programa nesta versão; ele será implementado usando estas respostas.</div><div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Explorar plano-base</button></div>`;
+  const program=loadRepaceProgram();
+  const generated=program?.source==='generated' && program?.profileId===p.id;
+  const planHtml=generated ? `<div class="perfil-programa-card"><div class="onboarding-kicker">PLANO CRIADO · MOTOR v${program.engineVersion||1}</div><h2>${program.name}</h2><p>${program.blocks.length} blocos · ${program.summary.daysPerWeek} dias por semana</p><div class="profile-summary compact">${programSummaryRows(program).map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${program.summary.adaptation?'<div class="callout"><b>Início com adaptação</b><br>O perfil indicou que vale começar com um bloco de Fundação antes da progressão principal.</div>':''}${program.safety?.level==='attention'?`<div class="callout alerta">${program.safety.message}</div>`:''}<div class="program-block-list">${program.blocks.map(b=>`<div class="program-block-row"><span>B${b.number}</span><div><b>${b.name}</b><small>${b.weeks.length} semanas · ${b.info}</small></div></div>`).join('')}</div><div class="callout"><b>Fase 3 concluída</b><br>O programa acima já foi gerado e salvo como dados. Na Fase 4, a tela Hoje passará a renderizar essas sessões em vez do plano-base fixo.</div></div>` : `<div class="callout"><b>Programa ainda não gerado</b><br>Edite e salve seu perfil para executar o Motor REPACE.</div>`;
+  wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</h2><p>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(ONBOARDING_STEPS[4],a.duracao)}</p></div><div class="profile-summary compact">${[['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(ONBOARDING_STEPS[9],a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${planHtml}<div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil e regenerar</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Explorar plano-base atual</button></div>`;
   el('#perfil-editar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(true)};
   el('#perfil-plano-base').onclick=()=>{fecharPerfil();entrarNoPlanoBase()};
 }
@@ -1554,12 +1703,12 @@ function fecharPerfil(){ el('#perfil-sheet').classList.remove('aberto'); el('#pe
 
 function entrarNoPlanoBase(){
   const meta=loadRepaceMeta();
-  saveRepaceMeta({...meta,app:'repace',architectureVersion:2,setupStatus:'ready',programSource:meta.programSource||'legacy'});
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:3,setupStatus:'ready',programSource:meta.programSource||'legacy'});
   fecharOnboardingRepace(); fecharPerfil(); esconderEntradaRepace(); renderAll(); ajustarEspacoRodape();
 }
 function iniciarImportacaoPelaEntrada(){ const input=el('#entry-backup-input'); if(input) input.click(); }
 
-el('#entry-continue').addEventListener('click',()=>{ esconderEntradaRepace(); renderAll(); ajustarEspacoRodape(); });
+el('#entry-continue').addEventListener('click',()=>{ const meta=loadRepaceMeta(); if(meta?.setupStatus==='program-ready'){ abrirPerfil(); return; } esconderEntradaRepace(); renderAll(); ajustarEspacoRodape(); });
 el('#entry-new').addEventListener('click',()=>abrirOnboardingRepace(false));
 el('#entry-resume').addEventListener('click',iniciarImportacaoPelaEntrada);
 el('#onboarding-fechar').addEventListener('click',fecharOnboardingRepace);
