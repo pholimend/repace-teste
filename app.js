@@ -583,6 +583,20 @@ el('#btn-hoje').addEventListener('click', () => {
   renderAll();
 });
 
+function voltarParaInicioRepace(){
+  fecharMais();
+  fecharInfo();
+  fecharPeso();
+  fecharRetomada();
+  fecharBackup();
+  fecharPerfil();
+  fecharPerfis();
+  fecharOnboardingRepace();
+  mostrarEntradaRepace();
+}
+
+el('#btn-inicio').addEventListener('click', voltarParaInicioRepace);
+
 /* ========================================================================
    "MAIS" — central de ferramentas
    ======================================================================== */
@@ -637,7 +651,7 @@ function renderMaisHub() {
       </button>
     </div>`;
 
-  el('#ferramenta-perfil').addEventListener('click', () => { fecharMais(); abrirPerfil(); });
+  el('#ferramenta-perfil').addEventListener('click', () => { fecharMais(); abrirPerfil('mais'); });
   el('#ferramenta-peso').addEventListener('click', () => { fecharMais(); abrirPeso(); });
   el('#ferramenta-retomada').addEventListener('click', () => { fecharMais(); abrirRetomada(); });
   el('#ferramenta-backup').addEventListener('click', () => { fecharMais(); abrirBackup(); });
@@ -1574,6 +1588,7 @@ function programSummaryRows(p){
 let onboardingStep = 0;
 let onboardingDraft = {};
 let onboardingEditing = false;
+let perfilOrigem = 'mais';
 
 function loadRepaceProfile(){ return safeParseJSON(localStorage.getItem(REPACE_PROFILE_KEY), null); }
 function saveRepaceProfile(profile){ localStorage.setItem(REPACE_PROFILE_KEY, JSON.stringify(profile)); }
@@ -1680,6 +1695,7 @@ function salvarPerfilOnboarding(){
   const meta=loadRepaceMeta();
   saveRepaceMeta({...meta,app:'repace',architectureVersion:3,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
   fecharOnboardingRepace();
+  perfilOrigem='entry';
   mostrarPerfilPronto();
   el('#perfil-sheet').classList.add('aberto');
   el('#perfil-backdrop').classList.add('aberto');
@@ -1698,7 +1714,59 @@ function mostrarPerfilPronto(){
   el('#perfil-editar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(true)};
   el('#perfil-plano-base').onclick=()=>{fecharPerfil();entrarNoPlanoBase()};
 }
-function abrirPerfil(){ mostrarPerfilPronto(); el('#perfil-sheet').classList.add('aberto'); el('#perfil-backdrop').classList.add('aberto'); }
+function renderPerfis(){
+  const wrap=el('#perfis-conteudo');
+  const p=loadRepaceProfile();
+  if(!p){
+    wrap.innerHTML=`<div class="empty-state"><b>Nenhum perfil criado</b><span>Crie um perfil para o REPACE preparar um novo programa.</span><button id="perfis-criar" class="btn-backup">Criar novo perfil</button></div>`;
+    el('#perfis-criar').onclick=()=>{ fecharPerfis(); abrirOnboardingRepace(false); };
+    return;
+  }
+  const a=p.answers||{};
+  const program=loadRepaceProgram();
+  const generated=program?.source==='generated' && program?.profileId===p.id;
+  wrap.innerHTML=`
+    <div class="perfis-intro"><span>PERFIL ATIVO</span><p>Nesta versão, o REPACE mantém um perfil ativo por dispositivo.</p></div>
+    <div class="perfil-manager-card">
+      <div class="perfil-manager-main">
+        <div class="perfil-manager-avatar">${uiIcon('perfil')}</div>
+        <div>
+          <b>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</b>
+          <span>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana</span>
+          ${generated?`<small>${program.name}</small>`:''}
+        </div>
+      </div>
+      <div class="perfil-manager-actions">
+        <button id="perfis-ver" class="btn-backup btn-backup-secundario">Ver perfil</button>
+        <button id="perfis-editar" class="btn-backup">Editar</button>
+        <button id="perfis-excluir" class="btn-backup btn-perigo-outline">Excluir perfil</button>
+      </div>
+    </div>
+    <div class="callout"><b>Excluir perfil</b><br>Remove o perfil e o programa gerado para ele. Registros antigos do app, peso e backups locais não são apagados automaticamente.</div>`;
+  el('#perfis-ver').onclick=()=>{ fecharPerfis(); abrirPerfil('perfis'); };
+  el('#perfis-editar').onclick=()=>{ fecharPerfis(); abrirOnboardingRepace(true); };
+  el('#perfis-excluir').onclick=excluirPerfilAtual;
+}
+function abrirPerfis(){ renderPerfis(); el('#perfis-sheet').classList.add('aberto'); el('#perfis-backdrop').classList.add('aberto'); }
+function fecharPerfis(){ const s=el('#perfis-sheet'), b=el('#perfis-backdrop'); if(s) s.classList.remove('aberto'); if(b) b.classList.remove('aberto'); }
+function excluirPerfilAtual(){
+  const p=loadRepaceProfile();
+  if(!p) return;
+  const ok=confirm('Excluir este perfil?\n\nO perfil e o programa gerado para ele serão removidos. Seus registros de peso, histórico antigo e arquivos de backup não serão apagados.');
+  if(!ok) return;
+  const program=loadRepaceProgram();
+  localStorage.setItem(REPACE_PROFILE_KEY, JSON.stringify(null));
+  if(program?.source==='generated' && (!program.profileId || program.profileId===p.id)){
+    localStorage.setItem(REPACE_PROGRAM_KEY, JSON.stringify(null));
+  }
+  const meta=loadRepaceMeta();
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:3,setupStatus:'not-started',programSource:null});
+  atualizarEntradaRepace();
+  renderPerfis();
+  mostrarToast('Perfil excluído');
+}
+
+function abrirPerfil(origem='mais'){ perfilOrigem=origem; mostrarPerfilPronto(); el('#perfil-sheet').classList.add('aberto'); el('#perfil-backdrop').classList.add('aberto'); }
 function fecharPerfil(){ el('#perfil-sheet').classList.remove('aberto'); el('#perfil-backdrop').classList.remove('aberto'); }
 
 function entrarNoPlanoBase(){
@@ -1708,15 +1776,18 @@ function entrarNoPlanoBase(){
 }
 function iniciarImportacaoPelaEntrada(){ const input=el('#entry-backup-input'); if(input) input.click(); }
 
-el('#entry-continue').addEventListener('click',()=>{ const meta=loadRepaceMeta(); if(meta?.setupStatus==='program-ready'){ abrirPerfil(); return; } esconderEntradaRepace(); renderAll(); ajustarEspacoRodape(); });
+el('#entry-continue').addEventListener('click',()=>{ const meta=loadRepaceMeta(); if(meta?.setupStatus==='program-ready'){ abrirPerfil('entry'); return; } esconderEntradaRepace(); renderAll(); ajustarEspacoRodape(); });
 el('#entry-new').addEventListener('click',()=>abrirOnboardingRepace(false));
+el('#entry-profiles').addEventListener('click',abrirPerfis);
 el('#entry-resume').addEventListener('click',iniciarImportacaoPelaEntrada);
 el('#onboarding-fechar').addEventListener('click',fecharOnboardingRepace);
 el('#onboarding-backdrop').addEventListener('click',fecharOnboardingRepace);
 el('#onboarding-voltar').addEventListener('click',()=>{ if(onboardingStep>0){onboardingStep--;renderOnboardingStep();} });
+el('#perfis-fechar').addEventListener('click',fecharPerfis);
+el('#perfis-backdrop').addEventListener('click',fecharPerfis);
 el('#perfil-fechar').addEventListener('click',fecharPerfil);
 el('#perfil-backdrop').addEventListener('click',fecharPerfil);
-el('#perfil-voltar').addEventListener('click',()=>{fecharPerfil();abrirMais();});
+el('#perfil-voltar').addEventListener('click',()=>{ fecharPerfil(); if(perfilOrigem==='perfis') abrirPerfis(); else if(perfilOrigem==='entry') mostrarEntradaRepace(); else abrirMais(); });
 el('#entry-backup-input').addEventListener('change',(e)=>{ const file=e.target.files&&e.target.files[0]; if(file) lidarComArquivoImportado(file); e.target.value=''; });
 
 /* ---------------------- init ---------------------- */

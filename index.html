@@ -29,6 +29,7 @@
     <div class="repace-entry-actions">
       <button id="entry-continue" class="entry-btn entry-primary" hidden>Continuar treino</button>
       <button id="entry-new" class="entry-btn entry-secondary">Iniciar novo treino</button>
+      <button id="entry-profiles" class="entry-btn entry-secondary">Perfis</button>
       <button id="entry-resume" class="entry-btn entry-secondary">Retomar treino</button>
     </div>
     <small>Seus dados ficam neste dispositivo e podem ser protegidos por backup.</small>
@@ -47,6 +48,15 @@
   <div id="onboarding-conteudo" class="mais-conteudo onboarding-conteudo"></div>
 </div>
 
+<div id="perfis-backdrop" class="mais-backdrop"></div>
+<div id="perfis-sheet" class="mais-sheet">
+  <div class="mais-topo">
+    <span>Perfis</span>
+    <button id="perfis-fechar" class="topo-icon-btn" aria-label="Fechar"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+  </div>
+  <div id="perfis-conteudo" class="mais-conteudo"></div>
+</div>
+
 <div id="perfil-backdrop" class="mais-backdrop"></div>
 <div id="perfil-sheet" class="mais-sheet">
   <div class="mais-topo">
@@ -60,7 +70,10 @@
 <header class="topbar">
   <div class="topbar-row">
     <h1>REPACE</h1>
-    <button id="btn-hoje" class="btn-hoje">Hoje</button>
+    <div class="topbar-actions">
+      <button id="btn-inicio" class="btn-inicio">Início</button>
+      <button id="btn-hoje" class="btn-hoje">Hoje</button>
+    </div>
   </div>
   <div id="contexto-atual" class="contexto"></div>
 </header>
