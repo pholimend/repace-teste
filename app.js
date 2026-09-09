@@ -1441,6 +1441,10 @@ const ONBOARDING_STEPS = [
     ['hipertrofia','Ganhar massa muscular'], ['condicionamento','Melhorar condicionamento'], ['emagrecimento','Emagrecer / reduzir gordura'], ['hibrido','Musculação + corrida'], ['corrida','Melhorar na corrida'], ['saude','Saúde e disposição'] ] },
   { key:'experiencia', title:'Qual é sua experiência com musculação?', sub:'Considere consistência e familiaridade com os exercícios.', type:'single', options:[
     ['iniciante','Iniciante'], ['intermediario','Intermediário'], ['avancado','Avançado'] ] },
+  { key:'sexo', title:'Qual é o seu sexo?', sub:'Esse dado compõe seu perfil físico. O motor não usa sexo isoladamente para limitar exercícios ou capacidade.', type:'single', options:[ ['masculino','Homem'], ['feminino','Mulher'] ] },
+  { key:'idade', title:'Qual é a sua idade?', sub:'Ajuda a contextualizar o perfil e a progressão inicial.', type:'number', placeholder:'Ex.: 30', suffix:'anos', min:14, max:100 },
+  { key:'alturaCm', title:'Qual é a sua altura?', sub:'Usada com o peso para calcular o IMC como contexto, não como medida direta de condicionamento.', type:'number', placeholder:'Ex.: 175', suffix:'cm', min:120, max:230 },
+  { key:'pesoKg', title:'Qual é o seu peso atual?', sub:'Ajuda a contextualizar exercícios com impacto. O IMC não decide o treino sozinho.', type:'number', placeholder:'Ex.: 80', suffix:'kg', min:35, max:300 },
   { key:'diasSemana', title:'Quantos dias por semana você consegue treinar?', sub:'Escolha uma frequência que caiba de verdade na sua rotina.', type:'single', options:[
     [2,'2 dias'],[3,'3 dias'],[4,'4 dias'],[5,'5 dias'],[6,'6 dias'] ] },
   { key:'diasDisponiveis', title:'Quais dias costumam funcionar melhor?', sub:'Selecione pelo menos a quantidade de dias escolhida na etapa anterior. O motor distribuirá as sessões entre eles.', type:'multi', options:[
@@ -1459,7 +1463,7 @@ const ONBOARDING_STEPS = [
 
 
 /* ---------------------- Fase 4.1 — Motor REPACE v2 ---------------------- */
-const REPACE_ENGINE_VERSION = 2;
+const REPACE_ENGINE_VERSION = 3;
 
 /* O motor trabalha com famílias de exercícios por ambiente e por etapa. A ideia não é
    trocar tudo a cada bloco, mas manter padrões motores e variar exercícios/volume de forma planejada. */
@@ -1516,38 +1520,53 @@ function evenlyPickDays(days,count){
   if(!src.length) return order.slice(0,count); if(count>=src.length) return src.slice(); if(count===1)return[src[Math.floor(src.length/2)]];
   const out=[]; for(let i=0;i<count;i++) out.push(src[Math.round(i*(src.length-1)/(count-1))]); return [...new Set(out)].slice(0,count);
 }
+function calcularImcPerfil(a){
+  const h=Number(a.alturaCm)/100, w=Number(a.pesoKg);
+  return h>0 && w>0 ? Math.round((w/(h*h))*10)/10 : null;
+}
 function determinePlanFamily(a){
+  const availability=Math.max(2,Math.min(6,Number(a.diasSemana)||3));
   const runWanted=a.corrida!=='nao'||['hibrido','corrida','condicionamento'].includes(a.objetivo);
-  if(a.objetivo==='corrida')return'run-focus'; if(runWanted)return'hybrid'; if(a.experiencia==='iniciante'||Number(a.diasSemana)<=3)return'full-body'; return'upper-lower';
+  if(a.objetivo==='corrida')return'run-focus';
+  if(runWanted)return'hybrid';
+  return availability<=3?'full-body':'upper-lower';
+}
+function targetMixFor(a,family,availability){
+  if(family==='run-focus'){const run=availability<=3?2:Math.min(4,availability-2);return{strength:availability-run,run};}
+  if(family==='hybrid'){if(availability===2)return{strength:1,run:1};if(availability===3)return{strength:2,run:1};if(availability===4)return{strength:2,run:2};if(availability===5)return{strength:3,run:2};return{strength:3,run:3};}
+  return{strength:availability,run:0};
 }
 function determineStructure(a){
-  const availability=Math.max(2,Math.min(6,Number(a.diasSemana)||3)); const family=determinePlanFamily(a); const pause=Number(a.pausaDias)||0;
-  const severeDetrain=pause>=180 || (a.experiencia==='iniciante'&&pause>=60); const needsAdapt=a.experiencia==='iniciante'||pause>=21||a.seguranca==='destreinado';
-  let targetStrength=3,targetRun=0;
-  if(family==='full-body')targetStrength=Math.min(availability,a.experiencia==='avancado'?4:3);
-  if(family==='upper-lower')targetStrength=Math.min(availability,4);
-  if(family==='hybrid'){ if(availability<=3){targetStrength=2;targetRun=1;} else if(availability===4){targetStrength=2;targetRun=2;} else {targetStrength=3;targetRun=Math.min(2,availability-3);} }
-  if(family==='run-focus'){targetRun=availability<=3?2:Math.min(4,availability-2);targetStrength=Math.max(1,availability-targetRun);}
-  // Após pausas longas, a Fundação pode começar com frequência menor e crescer depois.
-  let foundationStrength=targetStrength,foundationRun=targetRun;
-  if(severeDetrain){foundationStrength=Math.min(targetStrength,2); foundationRun=Math.min(targetRun,1);}
-  else if(needsAdapt&&availability>=4&&family==='full-body') foundationStrength=Math.min(targetStrength,3);
-  return {family,availability,targetStrength,targetRun,foundationStrength,foundationRun,needsAdapt,severeDetrain,pause};
+  const availability=Math.max(2,Math.min(6,Number(a.diasSemana)||3)),family=determinePlanFamily(a),pause=Number(a.pausaDias)||0,imc=calcularImcPerfil(a);
+  const severeDetrain=pause>=180||(a.experiencia==='iniciante'&&pause>=60),needsAdapt=a.experiencia==='iniciante'||pause>=21||a.seguranca==='destreinado';
+  const target=targetMixFor(a,family,availability);
+  let foundationTotal=availability;if(severeDetrain)foundationTotal=Math.min(3,availability);else if(needsAdapt&&availability>=4)foundationTotal=3;
+  const impactCaution=imc!==null&&imc>=30&&a.corrida==='comecar';
+  let foundationRun=Math.min(target.run,foundationTotal>1?1:foundationTotal);if(family==='run-focus'&&!severeDetrain)foundationRun=Math.min(target.run,2);if(impactCaution)foundationRun=Math.min(foundationRun,1);
+  let foundationStrength=Math.max(0,foundationTotal-foundationRun);
+  return{family,availability,targetStrength:target.strength,targetRun:target.run,foundationStrength,foundationRun,needsAdapt,severeDetrain,pause,imc,impactCaution};
 }
 function familyLabel(f){return({'full-body':'Full Body','upper-lower':'Upper / Lower','hybrid':'Híbrido — força + corrida','run-focus':'Corrida + força de suporte'})[f]||f;}
+function mixForTotal(s,total){
+  total=Math.max(1,Math.min(s.availability,total));const targetTotal=s.targetStrength+s.targetRun;if(total>=targetTotal)return{strength:s.targetStrength,run:s.targetRun};if(s.targetRun===0)return{strength:total,run:0};
+  let run=Math.max(1,Math.min(s.targetRun,Math.round(total*s.targetRun/targetTotal))),strength=Math.min(s.targetStrength,total-run);if(strength<1&&s.targetStrength>0){strength=1;run=total-1;}while(strength+run<total&&strength<s.targetStrength)strength++;while(strength+run<total&&run<s.targetRun)run++;return{strength,run};
+}
+function progressionTotals(s,count){
+  const target=s.targetStrength+s.targetRun,start=s.foundationStrength+s.foundationRun;if(!s.needsAdapt||start>=target)return Array(count).fill(target);const out=[];for(let i=0;i<count;i++){const r=count<=1?1:i/(count-1);out.push(Math.min(target,Math.round(start+(target-start)*r)));}out[count-1]=target;for(let i=1;i<out.length;i++)out[i]=Math.max(out[i],out[i-1]);return out;
+}
 function determineBlocks(a,s){
   const defs=[];
-  if(s.needsAdapt) defs.push({name:'Fundação',stage:'adapt',weeks:s.severeDetrain?6:4,focus:s.severeDetrain?'Readaptação gradual após pausa prolongada: reconstruir tolerância, técnica e rotina.':'Adaptação técnica, tolerância ao treino e construção de rotina.',effort:'RIR 3–4',strength:s.foundationStrength,run:s.foundationRun});
-  defs.push({name:s.family==='run-focus'?'Base aeróbia':'Base',stage:'base',weeks:s.needsAdapt?4:6,focus:s.family==='run-focus'?'Construir base aeróbia e força de suporte.':'Consolidar padrões de movimento e criar base de volume.',effort:'RIR 2–3',strength:s.targetStrength,run:s.targetRun});
-  // Perfis destreinados/iniciantes recebem uma ponte adicional; intermediários/avançados pulam quando não necessária.
-  if(s.severeDetrain||a.experiencia==='iniciante') defs.push({name:'Construção',stage:'build',weeks:5,focus:'Aumentar gradualmente volume, capacidade de trabalho e autonomia.',effort:'RIR 2–3',strength:s.targetStrength,run:s.targetRun});
-  if(a.experiencia!=='iniciante'||['hipertrofia','corrida','hibrido','condicionamento'].includes(a.objetivo)) defs.push({name:'Desenvolvimento',stage:'build',weeks:a.experiencia==='avancado'?6:5,focus:s.family==='run-focus'?'Expandir volume de corrida e introduzir estímulos controlados.':'Desenvolver força/hipertrofia/condicionamento com progressão planejada.',effort:'RIR 1–3',strength:s.targetStrength,run:s.targetRun});
-  defs.push({name:'Progressão',stage:'progress',weeks:a.experiencia==='avancado'?6:5,focus:'Consolidar a progressão com estímulo mais específico, sem perder técnica e recuperação.',effort:'RIR 1–2',strength:s.targetStrength,run:s.targetRun});
-  defs.push({name:'Manutenção',stage:'maintenance',weeks:4,repeatable:true,focus:'Rotina sustentável de longo prazo. Ao concluir a semana 4, este ciclo pode ser repetido enquanto continuar adequado ao objetivo e à recuperação.',effort:'RIR 2–3',strength:s.targetStrength,run:s.targetRun});
-  return defs;
+  if(s.needsAdapt)defs.push({name:'Fundação',stage:'adapt',weeks:s.severeDetrain?6:4,focus:s.severeDetrain?'Readaptação gradual após pausa prolongada: reconstruir tolerância, técnica e rotina.':'Adaptação técnica, tolerância ao treino e construção de rotina.',effort:'RIR 3–4'});
+  defs.push({name:s.family==='run-focus'?'Base aeróbia':'Base',stage:'base',weeks:s.needsAdapt?4:6,focus:s.family==='run-focus'?'Construir base aeróbia e força de suporte.':'Consolidar padrões de movimento e criar base de volume.',effort:'RIR 2–3'});
+  if(s.severeDetrain||a.experiencia==='iniciante')defs.push({name:'Construção',stage:'build',weeks:5,focus:'Aumentar gradualmente volume, frequência, capacidade de trabalho e autonomia.',effort:'RIR 2–3'});
+  if(a.experiencia!=='iniciante'||['hipertrofia','corrida','hibrido','condicionamento'].includes(a.objetivo))defs.push({name:'Desenvolvimento',stage:'build',weeks:a.experiencia==='avancado'?6:5,focus:s.family==='run-focus'?'Expandir volume de corrida e introduzir estímulos controlados.':'Desenvolver força, hipertrofia ou condicionamento com progressão planejada.',effort:'RIR 1–3'});
+  defs.push({name:'Progressão',stage:'progress',weeks:a.experiencia==='avancado'?6:5,focus:'Consolidar a frequência-alvo e a progressão com estímulo mais específico, sem perder técnica e recuperação.',effort:'RIR 1–2'});
+  defs.push({name:'Manutenção',stage:'maintenance',weeks:4,repeatable:true,focus:'Rotina sustentável de longo prazo na frequência-alvo. Ao concluir a semana 4, este ciclo pode ser repetido enquanto continuar adequado ao objetivo e à recuperação.',effort:'RIR 2–3'});
+  const totals=progressionTotals(s,defs.length);defs.forEach((d,i)=>{const m=mixForTotal(s,totals[i]);d.strength=m.strength;d.run=m.run;d.trainingDays=m.strength+m.run;d.targetReached=d.trainingDays===(s.targetStrength+s.targetRun);});
+  for(const d of defs.slice(-2)){d.strength=s.targetStrength;d.run=s.targetRun;d.trainingDays=s.targetStrength+s.targetRun;d.targetReached=true;}return defs;
 }
 function strengthSessionFor(lib,family,stage,index,effort){
-  if(family==='upper-lower' && lib.upperA){ const keys=['upperA','lowerA','upperB','lowerB']; const key=keys[index%keys.length]; return sessionStrength(key.startsWith('upper')?'Upper — membros superiores':'Lower — membros inferiores',getList(lib,key,'baseA'),effort); }
+  if(family==='upper-lower' && lib.upperA){ const keys=['upperA','lowerA','upperB','lowerB']; if(index<4){const key=keys[index];return sessionStrength(key.startsWith('upper')?'Upper — membros superiores':'Lower — membros inferiores',getList(lib,key,'baseA'),effort);} const key=index%2===0?(stage==='maintenance'?'maintainA':'baseA'):(stage==='maintenance'?'maintainB':'baseB'); return sessionStrength(index===4?'Full Body — complementar':'Full Body — técnica e acessórios',getList(lib,key,index%2?'baseB':'baseA'),effort,'Sessão complementar para completar a frequência semanal escolhida sem repetir toda a divisão Upper/Lower.'); }
   const stageKeys={adapt:['adaptA','adaptB'],base:['baseA','baseB'],build:['buildA','buildB'],progress:['progressA','progressB'],maintenance:['maintainA','maintainB']};
   const keys=stageKeys[stage]||stageKeys.base; const key=keys[index%2];
   const fallback=index%2?'baseB':'baseA'; const title=stage==='adapt'?`Full Body ${index%2?'B':'A'} — adaptação`:`Full Body ${index%2?'B':'A'}`;
@@ -1579,10 +1598,11 @@ function generateRepaceProgram(profile){
         return{id:`${day}-${w}`,weekday:day,session};
       }); weeks.push({id:`w${w}`,number:w,days});
     }
-    blocks.push({id:`b${bi+1}`,number:bi+1,name:bd.name,stage:bd.stage,info:bd.focus,repeatable:!!bd.repeatable,prescription:{strengthSessions:bd.strength,runSessions:bd.run,availableDays:selectedDays.length},weeks});
+    blocks.push({id:`b${bi+1}`,number:bi+1,name:bd.name,stage:bd.stage,info:bd.focus,repeatable:!!bd.repeatable,prescription:{strengthSessions:bd.strength,runSessions:bd.run,trainingDays:bd.strength+bd.run,targetTrainingDays:s.targetStrength+s.targetRun,targetReached:bd.targetReached,availableDays:selectedDays.length},weeks});
   });
-  return {id:gerarId('program'),schemaVersion:2,engineVersion:REPACE_ENGINE_VERSION,source:'generated',status:safetyHold?'attention':'ready',name:`Plano ${familyLabel(s.family)}`,goal:a.objetivo,family:s.family,
+  return {id:gerarId('program'),schemaVersion:3,engineVersion:REPACE_ENGINE_VERSION,source:'generated',status:safetyHold?'attention':'ready',name:`Plano ${familyLabel(s.family)}`,goal:a.objetivo,family:s.family,
     summary:{daysPerWeek:selectedDays.length,targetTrainingDays:s.targetStrength+s.targetRun,strengthSessions:s.targetStrength,runSessions:s.targetRun,sessionMinutes:Number(a.duracao)||60,environment:a.ambiente,adaptation:s.needsAdapt,blockCount:blocks.length,maintenance:true},
+    physicalContext:{sex:a.sexo||null,age:Number(a.idade)||null,heightCm:Number(a.alturaCm)||null,weightKg:Number(a.pesoKg)||null,bmi:s.imc,impactCaution:s.impactCaution},
     schedule:{selectedDays,availableDays:selectedDays,targetStrengthDays:s.targetStrength,targetRunDays:s.targetRun},blocks,
     safety:safetyHold?{level:'attention',message:a.seguranca==='dor-limitacao'?'Há dor/lesão/limitação atual informada. O programa foi apenas estruturado e não deve ser usado como liberação para treinar; procure avaliação adequada antes de progredir.':'Há recuperação de doença recente informada. Retome apenas quando estiver recuperado e, se houver sintomas persistentes ou orientação médica específica, siga avaliação profissional.'}:{level:'standard'},
     createdAt:new Date().toISOString(),profileId:profile.id};
@@ -1639,6 +1659,7 @@ function fecharOnboardingRepace(){
   el('#onboarding-sheet').classList.remove('aberto');
   el('#onboarding-backdrop').classList.remove('aberto');
 }
+function onboardingStepByKey(key){ return ONBOARDING_STEPS.find(x=>x.key===key); }
 function optionLabel(step, value){
   const hit=(step.options||[]).find(o=>String(o[0])===String(value));
   return hit ? hit[1] : (value ?? '—');
@@ -1685,15 +1706,20 @@ function renderOnboardingReview(){
   const wrap=el('#onboarding-conteudo');
   const a=onboardingDraft;
   const rows=[
-    ['Objetivo',optionLabel(ONBOARDING_STEPS[0],a.objetivo)],
-    ['Experiência',optionLabel(ONBOARDING_STEPS[1],a.experiencia)],
+    ['Objetivo',optionLabel(onboardingStepByKey('objetivo'),a.objetivo)],
+    ['Experiência',optionLabel(onboardingStepByKey('experiencia'),a.experiencia)],
+    ['Sexo',optionLabel(onboardingStepByKey('sexo'),a.sexo)],
+    ['Idade',`${a.idade||'—'} anos`],
+    ['Altura',`${a.alturaCm||'—'} cm`],
+    ['Peso',`${a.pesoKg||'—'} kg`],
+    ['IMC',calcularImcPerfil(a)?.toFixed(1)||'—'],
     ['Frequência',`${a.diasSemana} dias/semana`],
-    ['Dias',(a.diasDisponiveis||[]).map(v=>optionLabel(ONBOARDING_STEPS[3],v)).join(', ')||'—'],
-    ['Duração',optionLabel(ONBOARDING_STEPS[4],a.duracao)],
-    ['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],
-    ['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],
+    ['Dias',(a.diasDisponiveis||[]).map(v=>optionLabel(onboardingStepByKey('diasDisponiveis'),v)).join(', ')||'—'],
+    ['Duração',optionLabel(onboardingStepByKey('duracao'),a.duracao)],
+    ['Local',optionLabel(onboardingStepByKey('ambiente'),a.ambiente)],
+    ['Corrida',optionLabel(onboardingStepByKey('corrida'),a.corrida)],
     ['Pausa',`${a.pausaDias||0} dias`],
-    ['Estado atual',optionLabel(ONBOARDING_STEPS[9],a.seguranca)],
+    ['Estado atual',optionLabel(onboardingStepByKey('seguranca'),a.seguranca)],
   ];
   wrap.innerHTML=`<div class="onboarding-step-count">REVISÃO</div><h2>Seu perfil está pronto</h2><p>Confira as respostas. Ao salvar, o Motor REPACE vai montar a estrutura do seu programa.</p><div class="profile-summary">${rows.map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}${a.preferencias?`<div class="summary-wide"><span>Preferências</span><b>${a.preferencias}</b></div>`:''}</div>${a.seguranca==='dor-limitacao'||a.seguranca==='doenca-recente'?'<div class="callout alerta">Seu perfil indica uma condição que exigirá uma recomendação mais conservadora. O REPACE não substitui avaliação profissional.</div>':''}<div class="onboarding-actions"><button id="onboarding-salvar" class="entry-btn entry-primary">Salvar perfil</button><button id="onboarding-revisar" class="entry-btn entry-secondary">Voltar e revisar</button></div>`;
   el('#onboarding-salvar').onclick=salvarPerfilOnboarding;
@@ -1709,7 +1735,7 @@ function salvarPerfilOnboarding(){
   saveGeneratedProgram(program);
   localStorage.setItem(REPACE_POSITION_KEY, JSON.stringify({ programId: program.id, blockId: program.blocks?.[0]?.id || 'b1', week: 1, dayKey: hojeKey() }));
   const meta=loadRepaceMeta();
-  saveRepaceMeta({...meta,app:'repace',architectureVersion:4,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:4.2,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
   fecharOnboardingRepace();
   perfilOrigem='entry';
   mostrarPerfilPronto();
@@ -1725,8 +1751,8 @@ function mostrarPerfilPronto(){
   const a=p.answers||{};
   const program=loadRepaceProgram();
   const generated=program?.source==='generated' && program?.profileId===p.id;
-  const planHtml=generated ? `<div class="perfil-programa-card"><div class="onboarding-kicker">PLANO CRIADO · MOTOR v${program.engineVersion||1}</div><h2>${program.name}</h2><p>${program.blocks.length} blocos · ${program.summary.daysPerWeek} dias por semana</p><div class="profile-summary compact">${programSummaryRows(program).map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${program.summary.adaptation?'<div class="callout"><b>Início com adaptação</b><br>O perfil indicou que vale começar com um bloco de Fundação antes da progressão principal.</div>':''}${program.safety?.level==='attention'?`<div class="callout alerta">${program.safety.message}</div>`:''}<div class="program-block-list">${program.blocks.map(b=>`<div class="program-block-row"><span>B${b.number}</span><div><b>${b.name}</b><small>${b.weeks.length} semanas${b.repeatable?' · ciclo repetível':''} · ${b.info}</small></div></div>`).join('')}</div><div class="callout"><b>Programa pronto</b><br>Este programa já pode ser aberto na tela de treino. Blocos, semanas e dias serão renderizados diretamente a partir do plano gerado.</div></div>` : `<div class="callout"><b>Programa ainda não gerado</b><br>Edite e salve seu perfil para executar o Motor REPACE.</div>`;
-  wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</h2><p>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(ONBOARDING_STEPS[4],a.duracao)}</p></div><div class="profile-summary compact">${[['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(ONBOARDING_STEPS[9],a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${planHtml}<div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil e regenerar</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Começar treino</button></div>`;
+  const planHtml=generated ? `<div class="perfil-programa-card"><div class="onboarding-kicker">PLANO CRIADO · MOTOR v${program.engineVersion||1}</div><h2>${program.name}</h2><p>${program.blocks.length} blocos · ${program.summary.daysPerWeek} dias por semana</p><div class="profile-summary compact">${programSummaryRows(program).map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${program.summary.adaptation?'<div class="callout"><b>Início com adaptação</b><br>O perfil indicou que vale começar com um bloco de Fundação antes da progressão principal.</div>':''}${program.safety?.level==='attention'?`<div class="callout alerta">${program.safety.message}</div>`:''}<div class="program-block-list">${program.blocks.map(b=>`<div class="program-block-row"><span>B${b.number}</span><div><b>${b.name}</b><small>${b.weeks.length} semanas${b.repeatable?' · ciclo repetível':''} · ${b.prescription?.trainingDays??((b.prescription?.strengthSessions||0)+(b.prescription?.runSessions||0))}/${program.summary.targetTrainingDays} dias de treino${b.prescription?.targetReached?' · frequência-alvo':''} · ${b.info}</small></div></div>`).join('')}</div><div class="callout"><b>Programa pronto</b><br>Este programa já pode ser aberto na tela de treino. Blocos, semanas e dias serão renderizados diretamente a partir do plano gerado.</div></div>` : `<div class="callout"><b>Programa ainda não gerado</b><br>Edite e salve seu perfil para executar o Motor REPACE.</div>`;
+  wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(onboardingStepByKey('objetivo'),a.objetivo)}</h2><p>${optionLabel(onboardingStepByKey('experiencia'),a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(onboardingStepByKey('duracao'),a.duracao)}</p></div><div class="profile-summary compact">${[['Sexo',optionLabel(onboardingStepByKey('sexo'),a.sexo)],['Idade',`${a.idade||'—'} anos`],['Altura',`${a.alturaCm||'—'} cm`],['Peso',`${a.pesoKg||'—'} kg`],['IMC',calcularImcPerfil(a)?.toFixed(1)||'—'],['Local',optionLabel(onboardingStepByKey('ambiente'),a.ambiente)],['Corrida',optionLabel(onboardingStepByKey('corrida'),a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(onboardingStepByKey('seguranca'),a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${planHtml}<div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil e regenerar</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Começar treino</button></div>`;
   el('#perfil-editar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(true)};
   el('#perfil-plano-base').onclick=()=>{fecharPerfil();entrarNoTreinoRepace()};
 }
@@ -1747,8 +1773,8 @@ function renderPerfis(){
       <div class="perfil-manager-main">
         <div class="perfil-manager-avatar">${uiIcon('perfil')}</div>
         <div>
-          <b>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</b>
-          <span>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana</span>
+          <b>${optionLabel(onboardingStepByKey('objetivo'),a.objetivo)}</b>
+          <span>${optionLabel(onboardingStepByKey('experiencia'),a.experiencia)} · ${a.diasSemana||'—'} dias/semana</span>
           ${generated?`<small>${program.name}</small>`:''}
         </div>
       </div>
