@@ -306,6 +306,19 @@ function loadBlockReviews(){ return safeParseJSON(localStorage.getItem(REPACE_RE
 function saveBlockReviews(){ localStorage.setItem(REPACE_REVIEWS_KEY, JSON.stringify(blockReviews)); }
 let blockReviews = loadBlockReviews();
 
+// Fase 5.0.1: recupera no histórico de peso os check-ins de blocos que versões
+// anteriores podem ter sobrescrito quando mais de uma revisão ocorreu no mesmo dia.
+function reconciliarPesosDasRevisoes(){
+  let mudou=false;
+  blockReviews.forEach(r=>{
+    const w=Number(r.weight); if(!w||!r.programId||!r.blockId)return;
+    const existe=pesoRegistros.some(p=>p.source==='block-review'&&p.programId===r.programId&&p.blockId===r.blockId);
+    if(!existe){pesoRegistros.push({id:gerarId('peso'),data:r.date||new Date().toISOString(),peso:Math.round(w*10)/10,source:'block-review',programId:r.programId,blockId:r.blockId,blockNumber:r.blockNumber});mudou=true;}
+  });
+  if(mudou)savePeso();
+}
+reconciliarPesosDasRevisoes();
+
 /* ---------------------- histórico de retomadas ---------------------- */
 
 function loadRetomadas() {
@@ -1467,8 +1480,8 @@ const ONBOARDING_STEPS = [
 ];
 
 
-/* ---------------------- Fase 4.3 — Motor REPACE v4 ---------------------- */
-const REPACE_ENGINE_VERSION = 4;
+/* ---------------------- Fase 5.1 — Motor REPACE v5: periodização global ---------------------- */
+const REPACE_ENGINE_VERSION = 5;
 
 /* O motor trabalha com famílias de exercícios por ambiente e por etapa. A ideia não é
    trocar tudo a cada bloco, mas manter padrões motores e variar exercícios/volume de forma planejada. */
@@ -1512,12 +1525,12 @@ function sessionStrength(title,list,effort='RIR 2–3',note=''){
 function getList(lib,key,fallback){ return lib[key] || lib[fallback] || EXERCISE_LIBRARY.academia[key] || EXERCISE_LIBRARY.academia[fallback]; }
 function sessionRun(level,week,stage='base',slot=0){
   if(level==='comecar' || level==='nao'){
-    const map={adapt:['1 min trote leve + 2 min caminhada × 6–8','1 min trote + 1 min caminhada × 8–10'],base:['2 min trote + 1 min caminhada × 7–9','3 min trote + 1 min caminhada × 6–8'],build:['5 min trote + 1–2 min caminhada × 4–5','20–30 min contínuos leves, caminhando se necessário'],progress:['25–35 min contínuos leves','6 × 2 min moderado / 2 min leve'],maintenance:['30–40 min leve','6 × 2–3 min moderado / 2 min leve']};
+    const map={adapt:['1 min trote leve + 2 min caminhada × 6–8','1 min trote + 1 min caminhada × 8–10'],base:['2 min trote + 1 min caminhada × 7–9','3 min trote + 1 min caminhada × 6–8'],build:['5 min trote + 1–2 min caminhada × 4–5','20–30 min contínuos leves, caminhando se necessário'],develop:['8 min trote + 1 min caminhada × 3–4','25–35 min contínuos leves, caminhando se necessário'],progress:['25–35 min contínuos leves','6 × 2 min moderado / 2 min leve'],maintenance:['30–40 min leve','6 × 2–3 min moderado / 2 min leve']};
     const arr=map[stage]||map.base; return {id:gerarId('sess'),type:'run',title:slot===1&&stage!=='adapt'?'Corrida — estímulo controlado':'Corrida — progressão',rpe:slot===1&&stage!=='adapt'?'6–7/10':'≤6/10',prescription:arr[Math.min(slot,arr.length-1)],warmup:'5 min caminhada/trote leve',cooldown:'5 min leve'};
   }
   const regular=level==='regular';
-  const duration={adapt:'20–30 min leve',base:'30–40 min leve',build:'35–50 min leve',progress:'40–55 min leve',maintenance:'35–50 min leve'}[stage]||'30–40 min leve';
-  if(slot===1 && ['build','progress','maintenance'].includes(stage)) return {id:gerarId('sess'),type:'run',title:'Corrida — estímulo controlado',rpe:'6–7/10',prescription:regular?'6–8 × 2–3 min moderado / 2 min leve':'5–6 × 2 min moderado / 2 min leve',warmup:'8–10 min leve',cooldown:'5–10 min leve'};
+  const duration={adapt:'20–30 min leve',base:'30–40 min leve',build:'35–50 min leve',develop:'40–50 min leve',progress:'40–55 min leve',maintenance:'35–50 min leve'}[stage]||'30–40 min leve';
+  if(slot===1 && ['build','develop','progress','maintenance'].includes(stage)) return {id:gerarId('sess'),type:'run',title:'Corrida — estímulo controlado',rpe:'6–7/10',prescription:regular?'6–8 × 2–3 min moderado / 2 min leve':'5–6 × 2 min moderado / 2 min leve',warmup:'8–10 min leve',cooldown:'5–10 min leve'};
   return {id:gerarId('sess'),type:'run',title:'Corrida leve',rpe:'5–6/10',prescription:duration,warmup:'5–10 min leve',cooldown:'5 min leve'};
 }
 function evenlyPickDays(days,count){
@@ -1564,7 +1577,7 @@ function determineBlocks(a,s){
   if(s.needsAdapt)defs.push({name:'Fundação',stage:'adapt',weeks:s.severeDetrain?6:4,focus:s.severeDetrain?'Readaptação gradual após pausa prolongada: reconstruir tolerância, técnica e rotina.':'Adaptação técnica, tolerância ao treino e construção de rotina.',effort:'RIR 3–4'});
   defs.push({name:s.family==='run-focus'?'Base aeróbia':'Base',stage:'base',weeks:s.needsAdapt?4:6,focus:s.family==='run-focus'?'Construir base aeróbia e força de suporte.':'Consolidar padrões de movimento e criar base de volume.',effort:'RIR 2–3'});
   if(s.severeDetrain||a.experiencia==='iniciante')defs.push({name:'Construção',stage:'build',weeks:5,focus:'Aumentar gradualmente volume, frequência, capacidade de trabalho e autonomia.',effort:'RIR 2–3'});
-  if(a.experiencia!=='iniciante'||['hipertrofia','corrida','hibrido','condicionamento'].includes(a.objetivo))defs.push({name:'Desenvolvimento',stage:'build',weeks:a.experiencia==='avancado'?6:5,focus:s.family==='run-focus'?'Expandir volume de corrida e introduzir estímulos controlados.':'Desenvolver força, hipertrofia ou condicionamento com progressão planejada.',effort:'RIR 1–3'});
+  if(a.experiencia!=='iniciante'||['hipertrofia','corrida','hibrido','condicionamento'].includes(a.objetivo))defs.push({name:'Desenvolvimento',stage:'develop',weeks:a.experiencia==='avancado'?6:5,focus:s.family==='run-focus'?'Expandir volume de corrida e introduzir estímulos controlados.':'Desenvolver força, hipertrofia ou condicionamento com progressão planejada.',effort:'RIR 1–3'});
   defs.push({name:'Progressão',stage:'progress',weeks:a.experiencia==='avancado'?6:5,focus:'Consolidar a frequência-alvo e a progressão com estímulo mais específico, sem perder técnica e recuperação.',effort:'RIR 1–2'});
   defs.push({name:'Manutenção',stage:'maintenance',weeks:4,repeatable:true,focus:'Rotina sustentável de longo prazo na frequência-alvo. Ao concluir a semana 4, este ciclo pode ser repetido enquanto continuar adequado ao objetivo e à recuperação.',effort:'RIR 2–3'});
   const totals=progressionTotals(s,defs.length);defs.forEach((d,i)=>{const m=mixForTotal(s,totals[i]);d.strength=m.strength;d.run=m.run;d.trainingDays=m.strength+m.run;d.targetReached=d.trainingDays===(s.targetStrength+s.targetRun);});
@@ -1579,6 +1592,7 @@ function periodizeUpperLowerList(list,stage){
     if(stage==='adapt') return [name, Math.min(2,baseSets), compound?'10–15':'12–15'];
     if(stage==='base') return [name, Math.max(2,Math.min(3,baseSets)), compound?'8–12':baseReps];
     if(stage==='build') return [name, compound?Math.max(3,baseSets):Math.max(2,baseSets), compound?'8–12':baseReps];
+    if(stage==='develop') return [name, compound?Math.min(4,Math.max(3,baseSets+1)):Math.max(2,baseSets), compound?'7–11':baseReps];
     if(stage==='progress') return [name, compound?Math.min(4,baseSets+1):Math.max(2,baseSets), compound?'6–10':baseReps];
     if(stage==='maintenance') return [name, compound?3:Math.min(2,baseSets), compound?'8–12':baseReps];
     return [name,baseSets,baseReps];
@@ -1589,9 +1603,27 @@ function upperLowerNote(stage){
     adapt:'Mesmos padrões serão reaproveitados nos próximos blocos; aqui o foco é técnica, tolerância e margem de esforço.',
     base:'Consolide os exercícios-âncora e progrida primeiro dentro da faixa de repetições.',
     build:'Os exercícios-âncora continuam; o volume e a proximidade do esforço avançam de forma gradual.',
+    develop:'A identidade da sessão é preservada, mas a dose evolui: mais volume nos movimentos principais e esforço progressivamente mais específico.',
     progress:'Fase de progressão: mantenha técnica e use a faixa mais exigente apenas com boa recuperação.',
     maintenance:'Versão sustentável da divisão: preserve desempenho e progrida apenas quando houver margem técnica e recuperação.'
   })[stage]||'';
+}
+function periodizeGlobalList(list,stage){
+  /* Motor v5: camada global. Toda família recebe uma dose coerente com o bloco,
+     mesmo quando reutiliza a mesma lista de exercícios. Mantém âncoras e evita troca artificial. */
+  return (list||[]).map((item,i)=>{
+    const [name,sets,reps]=item; const compound=i<3;
+    if(stage==='adapt') return [name,Math.min(2,sets),compound?'10–15':'12–15'];
+    if(stage==='base') return [name,Math.max(2,Math.min(3,sets)),compound?'8–12':reps];
+    if(stage==='build') return [name,compound?Math.max(3,sets):Math.max(2,sets),compound?'8–12':reps];
+    if(stage==='develop') return [name,compound?Math.min(4,Math.max(3,sets+1)):Math.max(2,sets),compound?'7–11':reps];
+    if(stage==='progress') return [name,compound?Math.min(4,sets+1):Math.max(2,sets),compound?'6–10':reps];
+    if(stage==='maintenance') return [name,compound?3:Math.min(2,sets),compound?'8–12':reps];
+    return [name,sets,reps];
+  });
+}
+function blockEffort(stage,defaultEffort){
+  return ({adapt:'RIR 3–4',base:'RIR 2–3',build:'RIR 2–3',develop:'RIR 1–3',progress:'RIR 1–2',maintenance:'RIR 2–3'})[stage]||defaultEffort||'RIR 2–3';
 }
 function strengthSessionFor(lib,family,stage,index,effort){
   if(family==='upper-lower' && lib.upperA){
@@ -1599,20 +1631,20 @@ function strengthSessionFor(lib,family,stage,index,effort){
     if(index<4){
       const key=keys[index];
       const raw=getList(lib,key,'baseA');
-      const list=periodizeUpperLowerList(raw,stage);
+      const list=periodizeGlobalList(raw,stage);
       const letter=key.endsWith('B')?'B':'A';
       const title=key.startsWith('upper')?`Upper ${letter} — membros superiores`:`Lower ${letter} — membros inferiores`;
-      return sessionStrength(title,list,effort,upperLowerNote(stage));
+      return sessionStrength(title,list,blockEffort(stage,effort),upperLowerNote(stage));
     }
     const key=index%2===0?(stage==='maintenance'?'maintainA':'baseA'):(stage==='maintenance'?'maintainB':'baseB');
     const raw=getList(lib,key,index%2?'baseB':'baseA');
-    const list=periodizeUpperLowerList(raw,stage);
-    return sessionStrength(index===4?'Full Body — complementar':'Full Body — técnica e acessórios',list,effort,'Sessão complementar para completar a frequência semanal escolhida sem descaracterizar a divisão Upper/Lower.');
+    const list=periodizeGlobalList(raw,stage);
+    return sessionStrength(index===4?'Full Body — complementar':'Full Body — técnica e acessórios',list,blockEffort(stage,effort),'Sessão complementar para completar a frequência semanal escolhida sem descaracterizar a divisão Upper/Lower.');
   }
-  const stageKeys={adapt:['adaptA','adaptB'],base:['baseA','baseB'],build:['buildA','buildB'],progress:['progressA','progressB'],maintenance:['maintainA','maintainB']};
+  const stageKeys={adapt:['adaptA','adaptB'],base:['baseA','baseB'],build:['buildA','buildB'],develop:['buildA','buildB'],progress:['progressA','progressB'],maintenance:['maintainA','maintainB']};
   const keys=stageKeys[stage]||stageKeys.base; const key=keys[index%2];
   const fallback=index%2?'baseB':'baseA'; const title=stage==='adapt'?`Full Body ${index%2?'B':'A'} — adaptação`:`Full Body ${index%2?'B':'A'}`;
-  return sessionStrength(title,getList(lib,key,fallback),effort,stage==='maintenance'?'Mantenha a rotina sustentável; progrida apenas quando houver margem técnica e recuperação.':'');
+  return sessionStrength(title,periodizeGlobalList(getList(lib,key,fallback),stage),blockEffort(stage,effort),stage==='maintenance'?'Mantenha a rotina sustentável; progrida apenas quando houver margem técnica e recuperação.':'A dose desta sessão acompanha a função do bloco atual; exercícios âncora podem permanecer enquanto volume, repetições e esforço evoluem.');
 }
 function distributeSessions(availableDays,strengthCount,runCount){
   const selected=[...availableDays]; const total=Math.min(selected.length,strengthCount+runCount); const active=evenlyPickDays(selected,total);
@@ -1624,6 +1656,24 @@ function distributeSessions(availableDays,strengthCount,runCount){
     while(runDays.length<runCount){const d=active.find(x=>!strengthDays.includes(x)&&!runDays.includes(x));if(!d)break;runDays.push(d);}
   } else strengthDays=active.slice(0,strengthCount);
   return {strengthDays,runDays,active};
+}
+function strengthFingerprint(block){
+  const week=block?.weeks?.[0]; if(!week)return'';
+  return week.days.filter(d=>d.session?.type==='strength').map(d=>{
+    const s=d.session; return `${d.weekday}:${s.title}:`+(s.exercises||[]).map(e=>`${e.name}|${e.prescription?.series}|${e.prescription?.reps}|${e.prescription?.effort}`).join(';');
+  }).join('||');
+}
+function validateBlockProgression(program){
+  /* Não força mudança quando ela não é necessária. Apenas registra se blocos consecutivos
+     ficaram literalmente idênticos em toda a prescrição de força, para impedir regressões do motor. */
+  const warnings=[];
+  for(let i=1;i<(program.blocks||[]).length;i++){
+    const a=program.blocks[i-1],b=program.blocks[i];
+    const fa=strengthFingerprint(a),fb=strengthFingerprint(b);
+    if(fa && fb && fa===fb && a.stage!==b.stage) warnings.push({from:a.id,to:b.id,type:'identical-strength-prescription'});
+  }
+  program.validation={engine:'v5-global-periodization',checkedAt:new Date().toISOString(),warnings};
+  return program;
 }
 function generateRepaceProgram(profile){
   const a=profile.answers||{}; const s=determineStructure(a); const safetyHold=['dor-limitacao','doenca-recente'].includes(a.seguranca);
@@ -1642,12 +1692,13 @@ function generateRepaceProgram(profile){
     }
     blocks.push({id:`b${bi+1}`,number:bi+1,name:bd.name,stage:bd.stage,info:bd.focus,repeatable:!!bd.repeatable,prescription:{strengthSessions:bd.strength,runSessions:bd.run,trainingDays:bd.strength+bd.run,targetTrainingDays:s.targetStrength+s.targetRun,targetReached:bd.targetReached,availableDays:selectedDays.length},weeks});
   });
-  return {id:gerarId('program'),schemaVersion:3,engineVersion:REPACE_ENGINE_VERSION,source:'generated',status:safetyHold?'attention':'ready',name:`Plano ${familyLabel(s.family)}`,goal:a.objetivo,family:s.family,
+  const program={id:gerarId('program'),schemaVersion:4,engineVersion:REPACE_ENGINE_VERSION,source:'generated',status:safetyHold?'attention':'ready',name:`Plano ${familyLabel(s.family)}`,goal:a.objetivo,family:s.family,
     summary:{daysPerWeek:selectedDays.length,targetTrainingDays:s.targetStrength+s.targetRun,strengthSessions:s.targetStrength,runSessions:s.targetRun,sessionMinutes:Number(a.duracao)||60,environment:a.ambiente,adaptation:s.needsAdapt,blockCount:blocks.length,maintenance:true},
     physicalContext:{sex:a.sexo||null,age:Number(a.idade)||null,heightCm:Number(a.alturaCm)||null,weightKg:Number(a.pesoKg)||null,bmi:s.imc,impactCaution:s.impactCaution},
     schedule:{selectedDays,availableDays:selectedDays,targetStrengthDays:s.targetStrength,targetRunDays:s.targetRun},blocks,
     safety:safetyHold?{level:'attention',message:a.seguranca==='dor-limitacao'?'Há dor/lesão/limitação atual informada. O programa foi apenas estruturado e não deve ser usado como liberação para treinar; procure avaliação adequada antes de progredir.':'Há recuperação de doença recente informada. Retome apenas quando estiver recuperado e, se houver sintomas persistentes ou orientação médica específica, siga avaliação profissional.'}:{level:'standard'},
     createdAt:new Date().toISOString(),profileId:profile.id};
+  return validateBlockProgression(program);
 }
 function saveGeneratedProgram(program){ localStorage.setItem(REPACE_PROGRAM_KEY,JSON.stringify(program)); }
 function loadRepaceProgram(){ return safeParseJSON(localStorage.getItem(REPACE_PROGRAM_KEY),null); }
@@ -2048,7 +2099,19 @@ function renderBlockReview(){
 }
 function saveBlockReview(){
   const x=pendingBlockReview;if(!x)return;const profile=loadRepaceProfile();let weight=null,trend=null;
-  if(objectiveNeedsWeight(profile)){weight=parseFloat((el('#review-weight').value||'').replace(',','.'));if(!weight||weight<30||weight>400){alert('Informe um peso válido.');return;}weight=Math.round(weight*10)/10;const today=new Date().toISOString();const same=pesoRegistros.find(r=>String(r.data).slice(0,10)===today.slice(0,10));if(same)same.peso=weight;else pesoRegistros.push({id:gerarId('peso'),data:today,peso:weight,source:'block-review'});savePeso();trend=weightTrendForBlock(x.program,x.block,weight);}
+  // Cada revisão de bloco é um ponto próprio do histórico. Não sobrescrevemos uma
+  // pesagem anterior só porque duas revisões aconteceram no mesmo dia (comum em testes
+  // e também possível na vida real ao encerrar/ajustar blocos).
+  if(objectiveNeedsWeight(profile)){
+    weight=parseFloat((el('#review-weight').value||'').replace(',','.'));
+    if(!weight||weight<30||weight>400){alert('Informe um peso válido.');return;}
+    weight=Math.round(weight*10)/10;
+    const now=new Date().toISOString();
+    const sameBlock=pesoRegistros.find(r=>r.source==='block-review'&&r.programId===x.program.id&&r.blockId===x.block.id);
+    if(sameBlock){sameBlock.peso=weight;sameBlock.data=now;}
+    else pesoRegistros.push({id:gerarId('peso'),data:now,peso:weight,source:'block-review',programId:x.program.id,blockId:x.block.id,blockNumber:x.block.number});
+    savePeso();trend=weightTrendForBlock(x.program,x.block,weight);
+  }
   const review={id:gerarId('review'),programId:x.program.id,blockId:x.block.id,blockNumber:x.block.number,blockName:x.block.name,date:new Date().toISOString(),sessions:x.stats.done,weeks:x.block.weeks.length,adherence:el('#review-adherence').value,recovery:el('#review-recovery').value,progress:el('#review-progress').value,weight,trend};blockReviews.push(review);saveBlockReviews();renderBlockReviewResult(review,x.program,x.block);
 }
 function renderBlockReviewResult(r,program,block){
