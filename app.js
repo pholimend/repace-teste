@@ -1462,8 +1462,8 @@ const ONBOARDING_STEPS = [
 ];
 
 
-/* ---------------------- Fase 4.1 — Motor REPACE v2 ---------------------- */
-const REPACE_ENGINE_VERSION = 3;
+/* ---------------------- Fase 4.3 — Motor REPACE v4 ---------------------- */
+const REPACE_ENGINE_VERSION = 4;
 
 /* O motor trabalha com famílias de exercícios por ambiente e por etapa. A ideia não é
    trocar tudo a cada bloco, mas manter padrões motores e variar exercícios/volume de forma planejada. */
@@ -1565,8 +1565,45 @@ function determineBlocks(a,s){
   const totals=progressionTotals(s,defs.length);defs.forEach((d,i)=>{const m=mixForTotal(s,totals[i]);d.strength=m.strength;d.run=m.run;d.trainingDays=m.strength+m.run;d.targetReached=d.trainingDays===(s.targetStrength+s.targetRun);});
   for(const d of defs.slice(-2)){d.strength=s.targetStrength;d.run=s.targetRun;d.trainingDays=s.targetStrength+s.targetRun;d.targetReached=true;}return defs;
 }
+function periodizeUpperLowerList(list,stage){
+  /* Refinamento 4.3: preserva os exercícios-âncora e faz a dose evoluir por bloco.
+     Acessórios mudam pouco; o principal sinal de periodização é volume/faixa de reps/esforço. */
+  return list.map((item,i)=>{
+    const [name,baseSets,baseReps]=item;
+    const compound=i<3;
+    if(stage==='adapt') return [name, Math.min(2,baseSets), compound?'10–15':'12–15'];
+    if(stage==='base') return [name, Math.max(2,Math.min(3,baseSets)), compound?'8–12':baseReps];
+    if(stage==='build') return [name, compound?Math.max(3,baseSets):Math.max(2,baseSets), compound?'8–12':baseReps];
+    if(stage==='progress') return [name, compound?Math.min(4,baseSets+1):Math.max(2,baseSets), compound?'6–10':baseReps];
+    if(stage==='maintenance') return [name, compound?3:Math.min(2,baseSets), compound?'8–12':baseReps];
+    return [name,baseSets,baseReps];
+  });
+}
+function upperLowerNote(stage){
+  return ({
+    adapt:'Mesmos padrões serão reaproveitados nos próximos blocos; aqui o foco é técnica, tolerância e margem de esforço.',
+    base:'Consolide os exercícios-âncora e progrida primeiro dentro da faixa de repetições.',
+    build:'Os exercícios-âncora continuam; o volume e a proximidade do esforço avançam de forma gradual.',
+    progress:'Fase de progressão: mantenha técnica e use a faixa mais exigente apenas com boa recuperação.',
+    maintenance:'Versão sustentável da divisão: preserve desempenho e progrida apenas quando houver margem técnica e recuperação.'
+  })[stage]||'';
+}
 function strengthSessionFor(lib,family,stage,index,effort){
-  if(family==='upper-lower' && lib.upperA){ const keys=['upperA','lowerA','upperB','lowerB']; if(index<4){const key=keys[index];return sessionStrength(key.startsWith('upper')?'Upper — membros superiores':'Lower — membros inferiores',getList(lib,key,'baseA'),effort);} const key=index%2===0?(stage==='maintenance'?'maintainA':'baseA'):(stage==='maintenance'?'maintainB':'baseB'); return sessionStrength(index===4?'Full Body — complementar':'Full Body — técnica e acessórios',getList(lib,key,index%2?'baseB':'baseA'),effort,'Sessão complementar para completar a frequência semanal escolhida sem repetir toda a divisão Upper/Lower.'); }
+  if(family==='upper-lower' && lib.upperA){
+    const keys=['upperA','lowerA','upperB','lowerB'];
+    if(index<4){
+      const key=keys[index];
+      const raw=getList(lib,key,'baseA');
+      const list=periodizeUpperLowerList(raw,stage);
+      const letter=key.endsWith('B')?'B':'A';
+      const title=key.startsWith('upper')?`Upper ${letter} — membros superiores`:`Lower ${letter} — membros inferiores`;
+      return sessionStrength(title,list,effort,upperLowerNote(stage));
+    }
+    const key=index%2===0?(stage==='maintenance'?'maintainA':'baseA'):(stage==='maintenance'?'maintainB':'baseB');
+    const raw=getList(lib,key,index%2?'baseB':'baseA');
+    const list=periodizeUpperLowerList(raw,stage);
+    return sessionStrength(index===4?'Full Body — complementar':'Full Body — técnica e acessórios',list,effort,'Sessão complementar para completar a frequência semanal escolhida sem descaracterizar a divisão Upper/Lower.');
+  }
   const stageKeys={adapt:['adaptA','adaptB'],base:['baseA','baseB'],build:['buildA','buildB'],progress:['progressA','progressB'],maintenance:['maintainA','maintainB']};
   const keys=stageKeys[stage]||stageKeys.base; const key=keys[index%2];
   const fallback=index%2?'baseB':'baseA'; const title=stage==='adapt'?`Full Body ${index%2?'B':'A'} — adaptação`:`Full Body ${index%2?'B':'A'}`;
@@ -1735,7 +1772,7 @@ function salvarPerfilOnboarding(){
   saveGeneratedProgram(program);
   localStorage.setItem(REPACE_POSITION_KEY, JSON.stringify({ programId: program.id, blockId: program.blocks?.[0]?.id || 'b1', week: 1, dayKey: hojeKey() }));
   const meta=loadRepaceMeta();
-  saveRepaceMeta({...meta,app:'repace',architectureVersion:4.2,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:4.3,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
   fecharOnboardingRepace();
   perfilOrigem='entry';
   mostrarPerfilPronto();
