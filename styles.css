@@ -1195,3 +1195,12 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
   .topbar-actions{gap:5px;}
   .btn-inicio,.btn-hoje{padding-left:9px;padding-right:9px;font-size:12px;}
 }
+
+/* ========================================================================
+   REPACE 4.0 — renderer dinâmico e navegação persistente
+   ======================================================================== */
+.btn-inicio{display:inline-flex!important;align-items:center;gap:5px;white-space:nowrap;visibility:visible!important;opacity:1!important;}
+.btn-inicio span{font-size:14px;line-height:1;transform:translateY(-1px)}
+.repace-block-note{margin-top:12px}
+.day-btn.tipo-descanso{opacity:.58}
+.day-btn.tipo-descanso.active{opacity:1}

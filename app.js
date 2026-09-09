@@ -26,6 +26,8 @@ const SUPPORTED_SCHEMA_VERSIONS = [1];
 const REPACE_META_KEY = 'repace.meta.v1';
 const REPACE_PROFILE_KEY = 'repace.profile.v1';
 const REPACE_PROGRAM_KEY = 'repace.program.v1';
+const REPACE_POSITION_KEY = 'repace.position.v1';
+const REPACE_VIEW_KEY = 'repace.view.v1';
 
 function loadRepaceMeta() {
   return safeParseJSON(localStorage.getItem(REPACE_META_KEY), {
@@ -98,6 +100,8 @@ function coletarBackupData() {
         meta: loadRepaceMeta(),
         profile: safeParseJSON(localStorage.getItem(REPACE_PROFILE_KEY), null),
         currentProgram: safeParseJSON(localStorage.getItem(REPACE_PROGRAM_KEY), null),
+        currentPosition: safeParseJSON(localStorage.getItem(REPACE_POSITION_KEY), null),
+        currentView: localStorage.getItem(REPACE_VIEW_KEY) || 'home',
       },
     },
   };
@@ -214,6 +218,8 @@ function confirmarRestauracao() {
   const repace = d.repace || {};
   localStorage.setItem(REPACE_PROFILE_KEY, JSON.stringify(repace.profile ?? null));
   localStorage.setItem(REPACE_PROGRAM_KEY, JSON.stringify(repace.currentProgram || criarProgramaLegadoNormalizado()));
+  localStorage.setItem(REPACE_POSITION_KEY, JSON.stringify(repace.currentPosition || null));
+  localStorage.setItem(REPACE_VIEW_KEY, repace.currentView === 'training' ? 'training' : 'home');
   saveRepaceMeta({
     ...(repace.meta || loadRepaceMeta()),
     app: 'repace',
@@ -569,21 +575,27 @@ function renderAll() {
 
 el('#btn-concluido').addEventListener('click', () => {
   const k = doneKey();
+  if (!k) return;
   if (doneSet.has(k)) doneSet.delete(k); else doneSet.add(k);
   saveDone();
-  renderDiaSeletor();
-  renderConteudoDia();
-  renderProgressoSemana();
+  renderAll();
   mostrarToast(doneSet.has(k) ? '✓ Treino concluído' : 'Treino desmarcado');
 });
 
 el('#btn-hoje').addEventListener('click', () => {
-  state.diaKey = hojeKey();
-  saveState();
+  if (temProgramaGeradoRepace()) {
+    const pos = loadRepacePosition();
+    pos.dayKey = hojeKey();
+    saveRepacePosition(pos);
+  } else {
+    state.diaKey = hojeKey();
+    saveState();
+  }
   renderAll();
 });
 
 function voltarParaInicioRepace(){
+  localStorage.setItem(REPACE_VIEW_KEY, 'home');
   fecharMais();
   fecharInfo();
   fecharPeso();
@@ -1598,10 +1610,10 @@ function atualizarEntradaRepace(){
   const desc=el('#entry-description');
   const temTreinoAtivo=['ready','program-ready'].includes(meta?.setupStatus);
   if(continuar) continuar.hidden=!temTreinoAtivo;
-  if(continuar) continuar.textContent = meta?.setupStatus==='program-ready' ? 'Ver plano criado' : 'Continuar treino';
+  if(continuar) continuar.textContent = 'Continuar treino';
   if(desc){
     desc.textContent=temTreinoAtivo
-      ? (meta?.setupStatus==='program-ready' ? 'Seu programa foi criado. Veja o plano ou crie um novo perfil.' : 'Continue seu treino atual, crie um novo perfil ou restaure um backup.')
+      ? 'Continue seu treino atual, crie um novo perfil ou restaure um backup.'
       : 'Comece um programa personalizado ou retome um treino salvo em backup.';
   }
 }
@@ -1692,6 +1704,7 @@ function salvarPerfilOnboarding(){
   saveRepaceProfile(profile);
   const program=generateRepaceProgram(profile);
   saveGeneratedProgram(program);
+  localStorage.setItem(REPACE_POSITION_KEY, JSON.stringify({ programId: program.id, blockId: program.blocks?.[0]?.id || 'b1', week: 1, dayKey: hojeKey() }));
   const meta=loadRepaceMeta();
   saveRepaceMeta({...meta,app:'repace',architectureVersion:3,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
   fecharOnboardingRepace();
@@ -1709,10 +1722,10 @@ function mostrarPerfilPronto(){
   const a=p.answers||{};
   const program=loadRepaceProgram();
   const generated=program?.source==='generated' && program?.profileId===p.id;
-  const planHtml=generated ? `<div class="perfil-programa-card"><div class="onboarding-kicker">PLANO CRIADO · MOTOR v${program.engineVersion||1}</div><h2>${program.name}</h2><p>${program.blocks.length} blocos · ${program.summary.daysPerWeek} dias por semana</p><div class="profile-summary compact">${programSummaryRows(program).map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${program.summary.adaptation?'<div class="callout"><b>Início com adaptação</b><br>O perfil indicou que vale começar com um bloco de Fundação antes da progressão principal.</div>':''}${program.safety?.level==='attention'?`<div class="callout alerta">${program.safety.message}</div>`:''}<div class="program-block-list">${program.blocks.map(b=>`<div class="program-block-row"><span>B${b.number}</span><div><b>${b.name}</b><small>${b.weeks.length} semanas · ${b.info}</small></div></div>`).join('')}</div><div class="callout"><b>Fase 3 concluída</b><br>O programa acima já foi gerado e salvo como dados. Na Fase 4, a tela Hoje passará a renderizar essas sessões em vez do plano-base fixo.</div></div>` : `<div class="callout"><b>Programa ainda não gerado</b><br>Edite e salve seu perfil para executar o Motor REPACE.</div>`;
-  wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</h2><p>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(ONBOARDING_STEPS[4],a.duracao)}</p></div><div class="profile-summary compact">${[['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(ONBOARDING_STEPS[9],a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${planHtml}<div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil e regenerar</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Explorar plano-base atual</button></div>`;
+  const planHtml=generated ? `<div class="perfil-programa-card"><div class="onboarding-kicker">PLANO CRIADO · MOTOR v${program.engineVersion||1}</div><h2>${program.name}</h2><p>${program.blocks.length} blocos · ${program.summary.daysPerWeek} dias por semana</p><div class="profile-summary compact">${programSummaryRows(program).map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${program.summary.adaptation?'<div class="callout"><b>Início com adaptação</b><br>O perfil indicou que vale começar com um bloco de Fundação antes da progressão principal.</div>':''}${program.safety?.level==='attention'?`<div class="callout alerta">${program.safety.message}</div>`:''}<div class="program-block-list">${program.blocks.map(b=>`<div class="program-block-row"><span>B${b.number}</span><div><b>${b.name}</b><small>${b.weeks.length} semanas · ${b.info}</small></div></div>`).join('')}</div><div class="callout"><b>Programa pronto</b><br>Este programa já pode ser aberto na tela de treino. Blocos, semanas e dias serão renderizados diretamente a partir do plano gerado.</div></div>` : `<div class="callout"><b>Programa ainda não gerado</b><br>Edite e salve seu perfil para executar o Motor REPACE.</div>`;
+  wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</h2><p>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(ONBOARDING_STEPS[4],a.duracao)}</p></div><div class="profile-summary compact">${[['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(ONBOARDING_STEPS[9],a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${planHtml}<div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil e regenerar</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Começar treino</button></div>`;
   el('#perfil-editar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(true)};
-  el('#perfil-plano-base').onclick=()=>{fecharPerfil();entrarNoPlanoBase()};
+  el('#perfil-plano-base').onclick=()=>{fecharPerfil();entrarNoTreinoRepace()};
 }
 function renderPerfis(){
   const wrap=el('#perfis-conteudo');
@@ -1770,13 +1783,14 @@ function abrirPerfil(origem='mais'){ perfilOrigem=origem; mostrarPerfilPronto();
 function fecharPerfil(){ el('#perfil-sheet').classList.remove('aberto'); el('#perfil-backdrop').classList.remove('aberto'); }
 
 function entrarNoPlanoBase(){
+  localStorage.setItem(REPACE_VIEW_KEY, 'training');
   const meta=loadRepaceMeta();
   saveRepaceMeta({...meta,app:'repace',architectureVersion:3,setupStatus:'ready',programSource:meta.programSource||'legacy'});
   fecharOnboardingRepace(); fecharPerfil(); esconderEntradaRepace(); renderAll(); ajustarEspacoRodape();
 }
 function iniciarImportacaoPelaEntrada(){ const input=el('#entry-backup-input'); if(input) input.click(); }
 
-el('#entry-continue').addEventListener('click',()=>{ const meta=loadRepaceMeta(); if(meta?.setupStatus==='program-ready'){ abrirPerfil('entry'); return; } esconderEntradaRepace(); renderAll(); ajustarEspacoRodape(); });
+el('#entry-continue').addEventListener('click',()=>{ entrarNoTreinoRepace(); });
 el('#entry-new').addEventListener('click',()=>abrirOnboardingRepace(false));
 el('#entry-profiles').addEventListener('click',abrirPerfis);
 el('#entry-resume').addEventListener('click',iniciarImportacaoPelaEntrada);
@@ -1790,13 +1804,145 @@ el('#perfil-backdrop').addEventListener('click',fecharPerfil);
 el('#perfil-voltar').addEventListener('click',()=>{ fecharPerfil(); if(perfilOrigem==='perfis') abrirPerfis(); else if(perfilOrigem==='entry') mostrarEntradaRepace(); else abrirMais(); });
 el('#entry-backup-input').addEventListener('change',(e)=>{ const file=e.target.files&&e.target.files[0]; if(file) lidarComArquivoImportado(file); e.target.value=''; });
 
+
+/* ========================================================================
+   FASE 4 — renderer dinâmico do programa gerado + rota persistente
+   ======================================================================== */
+function temProgramaGeradoRepace(){
+  const p=loadRepaceProgram();
+  return !!(p && p.source==='generated' && Array.isArray(p.blocks) && p.blocks.length);
+}
+function temProgramaAtivoRepace(){
+  const meta=loadRepaceMeta();
+  return ['ready','program-ready'].includes(meta?.setupStatus);
+}
+function loadRepacePosition(){
+  const program=loadRepaceProgram();
+  const fallback={programId:program?.id||null,blockId:program?.blocks?.[0]?.id||'b1',week:1,dayKey:hojeKey()};
+  const raw=safeParseJSON(localStorage.getItem(REPACE_POSITION_KEY),fallback)||fallback;
+  if(raw.programId!==program?.id) return fallback;
+  return {...fallback,...raw};
+}
+function saveRepacePosition(pos){ localStorage.setItem(REPACE_POSITION_KEY,JSON.stringify(pos)); }
+function entrarNoTreinoRepace(){
+  const program=loadRepaceProgram();
+  if(program?.source==='generated' && Array.isArray(program.blocks) && program.blocks.length){
+    let pos=loadRepacePosition();
+    const block=program.blocks.find(b=>b.id===pos.blockId)||program.blocks[0];
+    pos.blockId=block.id;
+    pos.week=Math.max(1,Math.min(block.weeks?.length||1,Number(pos.week)||1));
+    if(!WEEKDAYS.some(d=>d.key===pos.dayKey)) pos.dayKey=hojeKey();
+    saveRepacePosition(pos);
+  }
+  localStorage.setItem(REPACE_VIEW_KEY,'training');
+  esconderEntradaRepace();
+  fecharPerfil(); fecharPerfis(); fecharOnboardingRepace();
+  renderAll(); ajustarEspacoRodape();
+}
+function generatedContext(){
+  const program=loadRepaceProgram();
+  if(!program || program.source!=='generated' || !Array.isArray(program.blocks)) return null;
+  let pos=loadRepacePosition();
+  let block=program.blocks.find(b=>b.id===pos.blockId)||program.blocks[0];
+  let week=block?.weeks?.find(w=>Number(w.number)===Number(pos.week))||block?.weeks?.[0];
+  if(!block||!week) return null;
+  const day=week.days?.find(d=>d.weekday===pos.dayKey)||null;
+  return {program,pos,block,week,day};
+}
+function generatedDoneKey(){
+  const c=generatedContext();
+  if(!c) return null;
+  return `repace-${c.program.id}-${c.block.id}-w${c.week.number}-${c.pos.dayKey}`;
+}
+function doneKey(){
+  const k=generatedDoneKey();
+  if(k) return k;
+  if (state.blocoId === 'b5') return `b5-${state.cicloId}-${state.semanaCiclo}-${state.diaKey}`;
+  return `${state.blocoId}-${state.semana}-${state.diaKey}`;
+}
+function renderGeneratedBlocoSeletor(c){
+  const wrap=el('#bloco-seletor'); wrap.innerHTML='';
+  c.program.blocks.forEach(b=>{
+    const btn=document.createElement('button');
+    btn.className='pill'+(c.block.id===b.id?' active':''); btn.textContent=`B${b.number}`;
+    btn.onclick=()=>{const pos=loadRepacePosition();pos.blockId=b.id;pos.week=1;saveRepacePosition(pos);renderAll();};
+    wrap.appendChild(btn);
+  });
+}
+function renderGeneratedSemanaSeletor(c){
+  const wrap=el('#semana-seletor'); wrap.innerHTML=''; const row=document.createElement('div'); row.className='sub-row scroll-x';
+  c.block.weeks.forEach(w=>{const btn=document.createElement('button');btn.className='pill pill-week'+(Number(c.week.number)===Number(w.number)?' active':'');btn.textContent=w.number;btn.onclick=()=>{const pos=loadRepacePosition();pos.week=w.number;saveRepacePosition(pos);renderAll();};row.appendChild(btn);});
+  wrap.appendChild(row);
+}
+function sessionForGeneratedDay(c,key){ return c.week.days?.find(d=>d.weekday===key)?.session || {type:'rest',title:'Recuperação / atividade leve',note:'Sem sessão estruturada neste dia.'}; }
+function generatedTypeClass(session){ return session?.type==='strength'?'forca':session?.type==='run'?'corrida':'descanso'; }
+function renderGeneratedDiaSeletor(c){
+  const wrap=el('#dia-seletor'); wrap.innerHTML='';
+  WEEKDAYS.forEach(d=>{
+    const session=sessionForGeneratedDay(c,d.key); const tipo=generatedTypeClass(session);
+    const key=`repace-${c.program.id}-${c.block.id}-w${c.week.number}-${d.key}`; const isDone=doneSet.has(key);
+    const btn=document.createElement('button'); btn.className=`day-btn tipo-${tipo}`+(c.pos.dayKey===d.key?' active':'')+(isDone?' done':'');
+    btn.innerHTML=`<span>${d.label}</span>${isDone?'<i class="check">✓</i>':''}`;
+    btn.onclick=()=>{const pos=loadRepacePosition();pos.dayKey=d.key;saveRepacePosition(pos);renderAll();}; wrap.appendChild(btn);
+  });
+}
+function renderGeneratedStrength(session){
+  let html=`<h2 class="dia-titulo">${session.title||'Musculação'}</h2>`;
+  const effort=session.exercises?.[0]?.prescription?.effort||'';
+  if(effort) html+=`<div class="meta-mini">Esforço: <b>${effort}</b></div>`;
+  if(session.warmup) html+=`<div class="aquecimento-mini">🔸 Aquecimento: ${session.warmup}</div>`;
+  html+='<div class="ex-list">'+(session.exercises||[]).map(ex=>{
+    const p=ex.prescription||{}; const pres=`${p.series??'—'} × ${p.reps??'—'}`;
+    const details=[]; if(p.effort) details.push(`<span><small>Esforço</small><b>${p.effort}</b></span>`); if(p.rest) details.push(`<span><small>Descanso</small><b>${p.rest}</b></span>`);
+    return `<article class="ex-card"><div class="ex-card-topo"><div class="ex-nome">${ex.name}</div></div><div class="ex-prescricao">${pres}</div>${details.length?`<div class="ex-detalhes">${details.join('')}</div>`:''}</article>`;
+  }).join('')+'</div>';
+  return html;
+}
+function renderGeneratedRun(session){
+  let html=`<h2 class="dia-titulo">${session.title||'Corrida'}</h2>`;
+  if(session.rpe) html+=`<div class="meta-mini">RPE-alvo: <b>${session.rpe}</b></div>`;
+  html+='<div class="sequencia">';
+  if(session.warmup) html+=`<div class="seq-step"><div class="seq-label">AQUECIMENTO</div><div class="seq-body">${session.warmup}</div></div><div class="seq-arrow">↓</div>`;
+  html+=`<div class="seq-step principal"><div class="seq-label">PARTE PRINCIPAL</div><div class="seq-body"><b>${session.prescription||'Sessão leve e controlada'}</b></div></div>`;
+  if(session.cooldown) html+=`<div class="seq-arrow">↓</div><div class="seq-step"><div class="seq-label">DESAQUECIMENTO</div><div class="seq-body">${session.cooldown}</div></div>`;
+  html+='</div>'; return html;
+}
+function renderGeneratedConteudo(c){
+  const wrap=el('#conteudo-dia'); const wd=WEEKDAYS.find(d=>d.key===c.pos.dayKey); const session=sessionForGeneratedDay(c,c.pos.dayKey); const tipo=generatedTypeClass(session);
+  let html=`<div class="dia-header">${tipoBadge(tipo==='forca'?'forca':tipo==='corrida'?'corrida':'descanso')}<span class="dia-nome">${wd?.full||''}</span></div>`;
+  if(tipo==='forca') html+=renderGeneratedStrength(session); else if(tipo==='corrida') html+=renderGeneratedRun(session); else html+=`<h2 class="dia-titulo">${session.title||'Recuperação'}</h2><div class="callout rest">${session.note||'Sem sessão estruturada neste dia. Priorize recuperação e atividade leve, se desejar.'}</div>`;
+  if(c.block.info) html+=`<div class="callout repace-block-note"><b>${c.block.name}</b><br>${c.block.info}</div>`;
+  if(c.program.safety?.level==='attention') html+=`<div class="callout alerta">${c.program.safety.message}</div>`;
+  wrap.innerHTML=html;
+  const btn=el('#btn-concluido'); if(tipo==='descanso'){btn.style.display='none';}else{btn.style.display='flex';const marked=doneSet.has(doneKey());btn.classList.toggle('marcado',marked);btn.innerHTML=marked?'✓ Treino concluído':'Marcar como concluído';}
+}
+function renderGeneratedProgress(c){
+  const wrap=el('#progresso-semana'); const trainDays=WEEKDAYS.filter(d=>sessionForGeneratedDay(c,d.key).type!=='rest');
+  const keys=trainDays.map(d=>`repace-${c.program.id}-${c.block.id}-w${c.week.number}-${d.key}`); const feitos=keys.filter(k=>doneSet.has(k)).length; const pct=keys.length?Math.round(feitos/keys.length*100):0;
+  wrap.innerHTML=`<div class="progresso-meta"><span>Progresso da semana</span><b>${feitos}/${keys.length}</b></div><div class="progresso-track" aria-label="${pct}% concluído"><span style="width:${pct}%"></span></div>`;
+}
+function renderAll(){
+  const c=generatedContext();
+  if(c){
+    renderGeneratedBlocoSeletor(c); renderGeneratedSemanaSeletor(c); renderGeneratedDiaSeletor(c);
+    el('#contexto-atual').textContent=`Bloco ${c.block.number} · ${c.block.name} · Semana ${c.week.number}`;
+    renderGeneratedConteudo(c); renderGeneratedProgress(c); return;
+  }
+  renderBlocoSeletor(); renderSemanaSeletor(); renderDiaSeletor(); renderContexto(); renderConteudoDia(); renderProgressoSemana();
+}
+
 /* ---------------------- init ---------------------- */
 
 garantirFundacaoRepace();
 renderAll();
-// A tela inicial do REPACE é sempre o ponto de entrada ao abrir/recarregar o app.
-// Se houver um treino ativo, ela oferece 'Continuar treino' sem apagar o estado atual.
-mostrarEntradaRepace();
+// Fase 4: preserva a tela em que o usuário estava. A primeira abertura continua em Início;
+// depois de entrar no treino, recarregar mantém a tela de treino até tocar em Início.
+if ((localStorage.getItem(REPACE_VIEW_KEY) || 'home') === 'training' && temProgramaAtivoRepace()) {
+  esconderEntradaRepace();
+} else {
+  localStorage.setItem(REPACE_VIEW_KEY, 'home');
+  mostrarEntradaRepace();
+}
 ajustarEspacoRodape();
 
 if ('serviceWorker' in navigator) {
