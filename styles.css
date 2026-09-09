@@ -1204,3 +1204,11 @@ button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visi
 .repace-block-note{margin-top:12px}
 .day-btn.tipo-descanso{opacity:.58}
 .day-btn.tipo-descanso.active{opacity:1}
+
+
+/* REPACE 5.0 — acompanhamento e revisão de blocos */
+#block-review-sheet{z-index:125;}#block-review-backdrop{z-index:124;}
+.review-hero{padding:8px 2px 14px}.review-hero>span{font-size:10px;font-weight:850;letter-spacing:.15em;color:var(--strength)}.review-hero h2{margin:5px 0 4px;font-size:23px}.review-hero p{margin:0;color:var(--text-dim);font-size:12.5px}
+.review-result-card,.weight-chart-card,.program-progress-card{margin:12px 0;padding:14px;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.review-result-card span,.progress-card-head span{font-size:11px;color:var(--text-dim);font-weight:700}.review-result-card b{display:block;font-size:22px;margin:4px 0}.review-result-card p{font-size:12.5px;line-height:1.5;color:var(--text-dim);margin:6px 0 0}
+.progress-card-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.progress-card-head b{font-size:12px}.progress-big{font-size:13px;font-weight:750;margin:9px 0}.program-progress-card small{display:block;margin-top:8px;color:var(--text-dim);line-height:1.4}.weight-chart{width:100%;height:auto;color:var(--strength);margin-top:8px}.chart-axis{display:flex;justify-content:space-between;color:var(--text-dim);font-size:10px}.block-review-sheet .select-linha{margin-bottom:10px}

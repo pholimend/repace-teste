@@ -1,6 +1,6 @@
-const CACHE_NAME = 'repace-v4-3-engine-v4';
+const CACHE_NAME = 'repace-v5-integration-v1';
 const APP_SHELL = [
-  './', './index.html', './styles.css?v=4.0', './data.js?v=4.0', './app.js?v=4.0',
+  './', './index.html', './styles.css?v=5.0', './data.js?v=5.0', './app.js?v=5.0',
   './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png',
   './icons/icon-512.png', './icons/icon-512-maskable.png'
 ];

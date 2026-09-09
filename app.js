@@ -17,8 +17,8 @@ const LAST_BACKUP_KEY = 'treinohibrido.lastbackup.v1';
 const PRE_RESTORE_KEY = 'treinohibrido.prerestore.v1';
 const BACKUP_APP_ID = 'repace';
 const LEGACY_BACKUP_APP_IDS = ['treino-hibrido'];
-const SCHEMA_VERSION = 1;
-const SUPPORTED_SCHEMA_VERSIONS = [1];
+const SCHEMA_VERSION = 2;
+const SUPPORTED_SCHEMA_VERSIONS = [1, 2];
 
 /* Fundação REPACE: estas chaves não substituem o armazenamento legado ainda.
    Elas criam a camada que, nas próximas fases, permitirá perfil e programas
@@ -28,6 +28,7 @@ const REPACE_PROFILE_KEY = 'repace.profile.v1';
 const REPACE_PROGRAM_KEY = 'repace.program.v1';
 const REPACE_POSITION_KEY = 'repace.position.v1';
 const REPACE_VIEW_KEY = 'repace.view.v1';
+const REPACE_REVIEWS_KEY = 'repace.blockreviews.v1';
 
 function loadRepaceMeta() {
   return safeParseJSON(localStorage.getItem(REPACE_META_KEY), {
@@ -96,6 +97,7 @@ function coletarBackupData() {
       musculacao: safeParseJSON(localStorage.getItem(MUSC_KEY), []),
       corrida: safeParseJSON(localStorage.getItem(CORRIDA_KEY), []),
       historicoRetomadas: JSON.parse(JSON.stringify(retomadasHistorico)),
+      revisoesBlocos: JSON.parse(JSON.stringify(blockReviews)),
       repace: {
         meta: loadRepaceMeta(),
         profile: safeParseJSON(localStorage.getItem(REPACE_PROFILE_KEY), null),
@@ -161,6 +163,7 @@ function validarBackup(obj) {
 
 function labelProgramaAtual(programa) {
   if (!programa || !programa.blocoId) return '—';
+  if(programa.generated) return `Bloco ${programa.blockNumber||'—'} · ${programa.blockName||programa.blocoId} · Semana ${programa.semana||'—'}`;
   if (programa.blocoId === 'b5') {
     const ciclo = (typeof b5Ciclo === 'function') ? b5Ciclo(programa.cicloId) : null;
     const nomeCiclo = ciclo ? ciclo.nome : (programa.cicloId || '—');
@@ -215,6 +218,7 @@ function confirmarRestauracao() {
   localStorage.setItem(MUSC_KEY, JSON.stringify(d.musculacao || []));
   localStorage.setItem(CORRIDA_KEY, JSON.stringify(d.corrida || []));
   localStorage.setItem(RETOMADAS_KEY, JSON.stringify(d.historicoRetomadas || []));
+  localStorage.setItem(REPACE_REVIEWS_KEY, JSON.stringify(d.revisoesBlocos || []));
   const repace = d.repace || {};
   localStorage.setItem(REPACE_PROFILE_KEY, JSON.stringify(repace.profile ?? null));
   localStorage.setItem(REPACE_PROGRAM_KEY, JSON.stringify(repace.currentProgram || criarProgramaLegadoNormalizado()));
@@ -297,6 +301,10 @@ function savePeso() {
   localStorage.setItem(PESO_KEY, JSON.stringify(pesoRegistros));
 }
 let pesoRegistros = loadPeso();
+
+function loadBlockReviews(){ return safeParseJSON(localStorage.getItem(REPACE_REVIEWS_KEY), []); }
+function saveBlockReviews(){ localStorage.setItem(REPACE_REVIEWS_KEY, JSON.stringify(blockReviews)); }
+let blockReviews = loadBlockReviews();
 
 /* ---------------------- histórico de retomadas ---------------------- */
 
@@ -580,6 +588,7 @@ el('#btn-concluido').addEventListener('click', () => {
   saveDone();
   renderAll();
   mostrarToast(doneSet.has(k) ? '✓ Treino concluído' : 'Treino desmarcado');
+  if(doneSet.has(k)) setTimeout(maybeOpenBlockReview, 180);
 });
 
 el('#btn-hoje').addEventListener('click', () => {
@@ -615,7 +624,7 @@ el('#btn-inicio').addEventListener('click', voltarParaInicioRepace);
 
 function renderMaisHub() {
   const wrap = el('#mais-conteudo');
-  wrap.innerHTML = `
+  wrap.innerHTML = `${programProgressHtml()}${blockReviewHistoryHtml()}
     <div class="mais-grupo-titulo">Ferramentas</div>
     <div class="ferramenta-lista">
       <button class="ferramenta-item" id="ferramenta-perfil">
@@ -683,47 +692,30 @@ function fecharMais() {
 /* ---------------------- "Informações do plano" ---------------------- */
 
 function conteudoInfo() {
+  const c=generatedContext();
+  if(c){
+    const p=c.program,b=c.block,idx=p.blocks.findIndex(x=>x.id===b.id),prev=idx>0?p.blocks[idx-1]:null;
+    const pr=b.prescription||{}, target=p.summary?.targetTrainingDays||pr.targetTrainingDays||0;
+    const sessions=(b.weeks?.[0]?.days||[]).map(d=>d.session).filter(Boolean);
+    const strength=sessions.filter(x=>x.type==='strength');
+    const efforts=[...new Set(strength.flatMap(x=>(x.exercises||[]).map(e=>e.prescription?.effort)).filter(Boolean))];
+    const ranges=[...new Set(strength.flatMap(x=>(x.exercises||[]).map(e=>e.prescription?.reps)).filter(Boolean))];
+    const evolution=prev ? `O bloco anterior tinha ${prev.prescription?.trainingDays||0}/${target} dias de treino. Este bloco trabalha com ${pr.trainingDays||0}/${target}${pr.targetReached?' e já atingiu a frequência-alvo.':'.'}` : `Este é o ponto de partida do programa, com ${pr.trainingDays||0}/${target} dias de treino.`;
+    const sections=[
+      {titulo:'Sobre este bloco',html:`<p><b>Bloco ${b.number} · ${b.name}</b></p><p>${b.info||'Etapa do programa personalizado.'}</p><p>${evolution}</p>${b.repeatable?'<p><b>Manutenção:</b> este ciclo é repetível enquanto continuar adequado à sua rotina, recuperação e objetivo.</p>':''}`},
+      {titulo:'Prescrição desta etapa',html:`<table><tr><td>Frequência</td><td><b>${pr.trainingDays||0}/${target} dias</b></td></tr><tr><td>Musculação</td><td><b>${pr.strengthSessions||0} sessões</b></td></tr><tr><td>Corrida</td><td><b>${pr.runSessions||0} sessões</b></td></tr><tr><td>Faixas predominantes</td><td><b>${ranges.join(', ')||'—'}</b></td></tr><tr><td>Esforço</td><td><b>${efforts.join(', ')||'—'}</b></td></tr></table>`},
+      {titulo:'Como progredir',html:'<ol>'+PROGRESSAO_MUSCULACAO.map(t=>`<li>${t}</li>`).join('')+'</ol>'},
+      {titulo:'RPE, RIR e recuperação',html:`<p><b>RPE</b> — ${RPE_RIR_GLOSSARIO.rpe.split('— ')[1]}</p><p><b>RIR</b> — ${RPE_RIR_GLOSSARIO.rir.split('— ')[1]}</p><ul>${RECUPERACAO.basica.map(r=>`<li><b>${r.label}:</b> ${r.texto}</li>`).join('')}</ul><p class="alerta-txt">${RECUPERACAO.procurarAjuda}</p>`}
+    ];
+    return sections;
+  }
   const bloco = state.blocoId === 'b5' ? B5_META : BLOCKS.find(b => b.id === state.blocoId);
-  const sections = [];
-
-  sections.push({
-    titulo: 'Sobre este bloco',
-    html: `<p>${bloco.objetivo}</p>`,
-  });
-
-  sections.push({
-    titulo: 'Progressão da musculação (dupla progressão)',
-    html: '<ol>' + PROGRESSAO_MUSCULACAO.map(t => `<li>${t}</li>`).join('') + '</ol>',
-  });
-
-  sections.push({
-    titulo: 'Critérios gerais para avançar, manter ou regredir',
-    html: '<table>' + CRITERIOS_GERAIS.map(c => `<tr><td>${c.sinal}</td><td><b>${c.acao}</b></td></tr>`).join('') + '</table>',
-  });
-
-  sections.push({
-    titulo: 'RPE e RIR',
-    html: `<p><b>RPE</b> — ${RPE_RIR_GLOSSARIO.rpe.split('— ')[1]}</p><p><b>RIR</b> — ${RPE_RIR_GLOSSARIO.rir.split('— ')[1]}</p>`,
-  });
-
-  sections.push({
-    titulo: 'Recuperação e prevenção de lesões',
-    html: '<ul>' + RECUPERACAO.basica.map(r => `<li><b>${r.label}:</b> ${r.texto}</li>`).join('') + '</ul>'
-      + `<p class="alerta-txt">${RECUPERACAO.procurarAjuda}</p>`
-      + `<p>${RECUPERACAO.excessoDeTreino}</p>`,
-  });
-
-  sections.push({
-    titulo: 'Semanas ruins e retorno após pausas',
-    html: '<ul>' + RETORNO_PAUSAS.map(t => `<li>${t}</li>`).join('') + '</ul>',
-  });
-
-  sections.push({
-    titulo: 'Marcos de evolução',
-    html: '<ol>' + MARCOS.map(m => `<li>${m}</li>`).join('') + '</ol>',
-  });
-
-  return sections;
+  return [
+    {titulo:'Sobre este bloco',html:`<p>${bloco.objetivo}</p>`},
+    {titulo:'Progressão da musculação (dupla progressão)',html:'<ol>'+PROGRESSAO_MUSCULACAO.map(t=>`<li>${t}</li>`).join('')+'</ol>'},
+    {titulo:'Critérios gerais para avançar, manter ou regredir',html:'<table>'+CRITERIOS_GERAIS.map(c=>`<tr><td>${c.sinal}</td><td><b>${c.acao}</b></td></tr>`).join('')+'</table>'},
+    {titulo:'RPE e RIR',html:`<p><b>RPE</b> — ${RPE_RIR_GLOSSARIO.rpe.split('— ')[1]}</p><p><b>RIR</b> — ${RPE_RIR_GLOSSARIO.rir.split('— ')[1]}</p>`}
+  ];
 }
 
 function renderInfo() {
@@ -756,7 +748,7 @@ function renderBackup() {
       <button id="btn-importar-backup" class="btn-backup btn-backup-secundario">Importar backup</button>
     </div>
     <input type="file" id="input-importar-backup" accept="application/json,.json" style="display:none">
-    <p class="meta-mini" style="margin-top:14px;">O backup gera um arquivo .json com todo o progresso salvo no aparelho: programa atual, treinos concluídos, peso corporal e histórico de retomadas. Guarde-o para transferir os dados para outro celular ou recuperar o app.</p>
+    <p class="meta-mini" style="margin-top:14px;">O backup gera um arquivo .json com todo o progresso salvo no aparelho: programa atual, treinos concluídos, perfil, programa, peso corporal, revisões de blocos e histórico de retomadas. Guarde-o para transferir os dados para outro celular ou recuperar o app.</p>
   `;
   attachBackupHandlers();
 }
@@ -812,6 +804,7 @@ function renderPesoLista() {
   } else {
     html += `<div class="empty-state"><div class="empty-icon">${uiIcon('peso')}</div><b>Ainda não há registros</b><span>Registre seu primeiro peso para começar a acompanhar sua evolução.</span></div>`;
   }
+  if (ordenado.length >= 2) html += renderWeightChart([...ordenado].reverse());
   html += `<button id="peso-registrar" class="btn-backup" style="width:100%; margin-top:12px;">Registrar peso</button>`;
 
   if (ordenado.length) {
@@ -948,13 +941,9 @@ function labelEstado(id) {
 }
 
 function posicaoAtualPrograma() {
-  return {
-    blocoId: state.blocoId,
-    semana: state.semana,
-    cicloId: state.cicloId,
-    semanaCiclo: state.semanaCiclo,
-    diaKey: state.diaKey,
-  };
+  const c=generatedContext();
+  if(c) return { generated:true, programId:c.program.id, blocoId:c.block.id, blockName:c.block.name, blockNumber:c.block.number, semana:c.week.number, diaKey:c.pos.dayKey };
+  return { blocoId: state.blocoId, semana: state.semana, cicloId: state.cicloId, semanaCiclo: state.semanaCiclo, diaKey: state.diaKey };
 }
 
 function faixaPorDias(dias) {
@@ -1101,7 +1090,7 @@ function renderRetomadaEtapa3() {
     <div class="opcao-lista">${opcaoListaHTML(ESTADOS_RETOMADA, 'estado', retomadaResp.estado)}</div>`;
 }
 
-function renderRetomadaEtapa4() {
+function renderRetomadaEtapa4Legacy() {
   const posicao = retomadaResp.posicao || posicaoAtualPrograma();
   const isB5 = posicao.blocoId === 'b5';
   const blocoOptions = BLOCKS.concat([B5_META]).map(b => `<option value="${b.id}" ${posicao.blocoId === b.id ? 'selected' : ''}>Bloco ${b.numero} — ${b.nome}</option>`).join('');
@@ -1141,6 +1130,18 @@ function renderRetomadaEtapa4() {
       <button class="btn-backup btn-backup-secundario" id="retomada-voltar-etapa3b">Voltar</button>
       <button class="btn-backup" id="retomada-ver-resultado">Ver recomendação</button>
     </div>`;
+}
+
+function renderRetomadaEtapa4() {
+  const c=generatedContext();
+  if(!c) return renderRetomadaEtapa4Legacy();
+  const pos=retomadaResp.posicao||posicaoAtualPrograma();
+  const program=c.program;
+  const block=program.blocks.find(b=>b.id===pos.blocoId)||c.block;
+  const blocoOptions=program.blocks.map(b=>`<option value="${b.id}" ${block.id===b.id?'selected':''}>Bloco ${b.number} — ${b.name}</option>`).join('');
+  const semanaOptions=block.weeks.map(w=>`<option value="${w.number}" ${Number(pos.semana)===Number(w.number)?'selected':''}>Semana ${w.number}</option>`).join('');
+  const diaOptions=WEEKDAYS.map(d=>`<option value="${d.key}" ${pos.diaKey===d.key?'selected':''}>${d.full}</option>`).join('');
+  return `<div class="wizard-topo"><button class="wizard-voltar" id="retomada-voltar-etapa3">‹ Voltar</button><span class="wizard-passo">Etapa 4 de 4</span></div><h3 class="dia-titulo" style="font-size:17px;">Confirme onde você parou no programa</h3><p class="meta-mini">Preenchido automaticamente com seu programa REPACE atual.</p><label class="campo-label">Bloco</label><select id="retomada-bloco" class="select-linha">${blocoOptions}</select><label class="campo-label">Semana</label><select id="retomada-semana" class="select-linha">${semanaOptions}</select><label class="campo-label">Dia de referência</label><select id="retomada-dia" class="select-linha">${diaOptions}</select><div class="wizard-nav"><button class="btn-backup btn-backup-secundario" id="retomada-voltar-etapa3b">Voltar</button><button class="btn-backup" id="retomada-ver-resultado">Ver recomendação</button></div>`;
 }
 
 function renderRetomadaResultado() {
@@ -1265,7 +1266,11 @@ function attachRetomadaHandlers() {
   if (selBloco) selBloco.addEventListener('change', () => {
     const diaAtual = el('#retomada-dia') ? el('#retomada-dia').value : posicaoAtualPrograma().diaKey;
     const novoBlocoId = selBloco.value;
-    if (novoBlocoId === 'b5') {
+    const gp=loadRepaceProgram();
+    if(gp?.source==='generated'){
+      const bloco=gp.blocks.find(b=>b.id===novoBlocoId);
+      retomadaResp.posicao={generated:true,programId:gp.id,blocoId:novoBlocoId,blockName:bloco?.name,blockNumber:bloco?.number,semana:1,diaKey:diaAtual};
+    } else if (novoBlocoId === 'b5') {
       retomadaResp.posicao = { blocoId: novoBlocoId, cicloId: 'forca', semanaCiclo: 1, diaKey: diaAtual };
     } else {
       const bloco = BLOCKS.find(b => b.id === novoBlocoId);
@@ -1768,11 +1773,16 @@ function salvarPerfilOnboarding(){
   const now=new Date().toISOString();
   const profile={ id:antigo?.id||gerarId('perfil'), schemaVersion:1, createdAt:antigo?.createdAt||now, updatedAt:now, answers:JSON.parse(JSON.stringify(onboardingDraft)) };
   saveRepaceProfile(profile);
+  // O peso informado no perfil vira o primeiro registro, sem duplicar um registro do mesmo dia/valor.
+  const perfilPeso=Number(profile.answers?.pesoKg);
+  if(perfilPeso>0 && !pesoRegistros.some(r=>Math.abs(Number(r.peso)-perfilPeso)<0.05 && String(r.data).slice(0,10)===now.slice(0,10))){
+    pesoRegistros.push({id:gerarId('peso'),data:now,peso:Math.round(perfilPeso*10)/10,source:'profile'}); savePeso();
+  }
   const program=generateRepaceProgram(profile);
   saveGeneratedProgram(program);
   localStorage.setItem(REPACE_POSITION_KEY, JSON.stringify({ programId: program.id, blockId: program.blocks?.[0]?.id || 'b1', week: 1, dayKey: hojeKey() }));
   const meta=loadRepaceMeta();
-  saveRepaceMeta({...meta,app:'repace',architectureVersion:4.3,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:5.0,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
   fecharOnboardingRepace();
   perfilOrigem='entry';
   mostrarPerfilPronto();
@@ -1996,6 +2006,69 @@ function renderAll(){
   }
   renderBlocoSeletor(); renderSemanaSeletor(); renderDiaSeletor(); renderContexto(); renderConteudoDia(); renderProgressoSemana();
 }
+
+
+/* ========================================================================
+   REPACE 5.0 — integração, revisão de blocos e acompanhamento
+   ======================================================================== */
+function renderWeightChart(registros){
+  const pts=registros.filter(r=>Number(r.peso)>0).slice(-24); if(pts.length<2)return '';
+  const vals=pts.map(r=>Number(r.peso)),min=Math.min(...vals),max=Math.max(...vals),range=Math.max(1,max-min);
+  const coords=pts.map((r,i)=>`${10+(i/(pts.length-1))*280},${90-((Number(r.peso)-min)/range)*70}`);
+  return `<div class="weight-chart-card"><div class="progress-card-head"><span>Tendência do peso</span><b>${formatarPeso(vals[vals.length-1]-vals[0])} kg</b></div><svg class="weight-chart" viewBox="0 0 300 105" role="img" aria-label="Evolução do peso"><polyline points="${coords.join(' ')}" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>${coords.map(c=>{const [x,y]=c.split(',');return `<circle cx="${x}" cy="${y}" r="3.2" fill="currentColor"/>`}).join('')}</svg><div class="chart-axis"><span>${formatarPeso(vals[0])} kg</span><span>${formatarPeso(vals[vals.length-1])} kg</span></div></div>`;
+}
+function generatedTrainingKeysForBlock(program,block){
+  return (block.weeks||[]).flatMap(w=>(w.days||[]).filter(d=>d.session?.type!=='rest').map(d=>`repace-${program.id}-${block.id}-w${w.number}-${d.weekday}`));
+}
+function blockCompletionStats(program,block){const keys=generatedTrainingKeysForBlock(program,block),done=keys.filter(k=>doneSet.has(k)).length;return{total:keys.length,done,pct:keys.length?Math.round(done/keys.length*100):0,complete:keys.length>0&&done===keys.length};}
+function reviewForBlock(programId,blockId){return blockReviews.find(r=>r.programId===programId&&r.blockId===blockId);}
+function objectiveNeedsWeight(profile){return profile?.answers?.objetivo==='emagrecimento';}
+function weightTrendForBlock(program,block,currentWeight){
+  const profile=loadRepaceProfile(),initial=Number(profile?.answers?.pesoKg)||null,all=[...pesoRegistros].sort((a,b)=>new Date(a.data)-new Date(b.data));
+  const prior=blockReviews.filter(r=>r.programId===program.id && Number(r.blockNumber)<Number(block.number) && Number(r.weight)>0).sort((a,b)=>Number(b.blockNumber)-Number(a.blockNumber))[0];
+  const start=Number(prior?.weight)||initial||all[0]?.peso, end=Number(currentWeight)||all.at(-1)?.peso||start;
+  if(!start||!end)return null; const diff=Math.round((end-start)*10)/10,pct=Math.round((diff/start)*1000)/10;
+  let label='Tendência ainda incerta',text='Há poucos dados para interpretar o ritmo com confiança. Continue registrando o peso em condições semelhantes.';
+  const weeks=block.weeks?.length||4; const weeklyPct=Math.abs(pct)/Math.max(1,weeks);
+  if(diff<0){ if(weeklyPct<0.25){label='Perda gradual';text='O peso está em tendência de queda, porém de forma lenta. Aderência, medidas corporais e desempenho também ajudam a interpretar o progresso.';} else if(weeklyPct<=1){label='Ritmo gradual';text='A tendência observada é compatível com uma redução gradual de peso. Continue observando recuperação, disposição e aderência.';} else {label='Perda acelerada';text='O peso caiu rapidamente neste período. Mais rápido não significa necessariamente melhor; observe recuperação, disposição e desempenho e considere orientação profissional se houver sintomas ou dificuldade para sustentar a rotina.';} }
+  else if(Math.abs(pct)<0.5){label='Peso relativamente estável';text='A balança mudou pouco. Isso isoladamente não define o resultado: aderência, medidas e composição corporal também podem mudar.';}
+  else {label='Tendência de aumento';text='O peso subiu neste período. Para um objetivo de emagrecimento, vale revisar aderência e hábitos; a balança isolada não identifica a causa.';}
+  return{start,end,diff,pct,label,text,count:all.length};
+}
+let pendingBlockReview=null;
+function maybeOpenBlockReview(){
+  const c=generatedContext(); if(!c)return; const stats=blockCompletionStats(c.program,c.block); if(!stats.complete||(!c.block.repeatable&&reviewForBlock(c.program.id,c.block.id)))return;
+  pendingBlockReview={program:c.program,block:c.block,stats}; renderBlockReview(); el('#block-review-sheet').classList.add('aberto');el('#block-review-backdrop').classList.add('aberto');
+}
+function renderBlockReview(){
+  const x=pendingBlockReview;if(!x)return;const profile=loadRepaceProfile(),weight=objectiveNeedsWeight(profile),last=pesoOrdenado()[0];
+  const obj=profile?.answers?.objetivo; const contextMsg=obj==='hipertrofia'?'Vamos registrar aderência, recuperação e sua percepção de evolução no treino.':obj==='corrida'?'Vamos registrar aderência, recuperação e sua percepção de condicionamento.':obj==='hibrido'?'Vamos revisar como musculação, corrida e recuperação encaixaram neste bloco.':obj==='emagrecimento'?'Além da experiência no treino, vamos observar a tendência do peso sem usar a balança como único indicador.':'Vamos registrar como sua rotina, recuperação e progresso se comportaram neste bloco.';
+  el('#block-review-conteudo').innerHTML=`<div class="review-hero"><span>BLOCO ${x.block.number} CONCLUÍDO</span><h2>${x.block.name}</h2><p>${x.stats.done} sessões concluídas · ${x.block.weeks.length} semanas</p></div><div class="callout">${contextMsg}</div>${weight?`<label class="campo-label">Atualize seu peso</label><input id="review-weight" class="input-linha" inputmode="decimal" placeholder="Ex.: 82,5" value="${last?String(last.peso).replace('.',','):''}"><p class="meta-mini">Usaremos a tendência como contexto, não como diagnóstico do seu progresso.</p>`:''}<div class="secao-titulo">Como foi este bloco?</div><label class="campo-label">Aderência</label><select id="review-adherence" class="select-linha"><option value="baixa">Baixa</option><option value="razoavel">Razoável</option><option value="boa" selected>Boa</option><option value="excelente">Excelente</option></select><label class="campo-label">Recuperação / disposição</label><select id="review-recovery" class="select-linha"><option value="ruim">Ruim</option><option value="razoavel">Razoável</option><option value="boa" selected>Boa</option></select><label class="campo-label">Percepção de progresso</label><select id="review-progress" class="select-linha"><option value="pior">Pior</option><option value="igual">Igual</option><option value="melhor" selected>Melhor</option></select><button id="review-save" class="btn-backup" style="width:100%;margin-top:16px">Concluir revisão</button>`;
+  el('#review-save').onclick=saveBlockReview;
+}
+function saveBlockReview(){
+  const x=pendingBlockReview;if(!x)return;const profile=loadRepaceProfile();let weight=null,trend=null;
+  if(objectiveNeedsWeight(profile)){weight=parseFloat((el('#review-weight').value||'').replace(',','.'));if(!weight||weight<30||weight>400){alert('Informe um peso válido.');return;}weight=Math.round(weight*10)/10;const today=new Date().toISOString();const same=pesoRegistros.find(r=>String(r.data).slice(0,10)===today.slice(0,10));if(same)same.peso=weight;else pesoRegistros.push({id:gerarId('peso'),data:today,peso:weight,source:'block-review'});savePeso();trend=weightTrendForBlock(x.program,x.block,weight);}
+  const review={id:gerarId('review'),programId:x.program.id,blockId:x.block.id,blockNumber:x.block.number,blockName:x.block.name,date:new Date().toISOString(),sessions:x.stats.done,weeks:x.block.weeks.length,adherence:el('#review-adherence').value,recovery:el('#review-recovery').value,progress:el('#review-progress').value,weight,trend};blockReviews.push(review);saveBlockReviews();renderBlockReviewResult(review,x.program,x.block);
+}
+function renderBlockReviewResult(r,program,block){
+  const idx=program.blocks.findIndex(b=>b.id===block.id),next=program.blocks[idx+1];
+  const trend=r.trend?`<div class="review-result-card"><span>${r.trend.label}</span><b>${r.trend.diff>0?'+':''}${formatarPeso(r.trend.diff)} kg · ${r.trend.pct>0?'+':''}${r.trend.pct}%</b><p>${r.trend.text}</p></div>${renderWeightChart([...pesoRegistros].sort((a,b)=>new Date(a.data)-new Date(b.data)))}`:'';
+  el('#block-review-conteudo').innerHTML=`<div class="review-hero"><span>REVISÃO SALVA</span><h2>Bloco ${block.number} concluído</h2><p>${r.adherence==='excelente'?'Excelente aderência':r.adherence==='boa'?'Boa aderência':'Revisão registrada'} · recuperação ${r.recovery}</p></div>${trend}<div class="callout"><b>${next?`Próximo: Bloco ${next.number} · ${next.name}`:'Manutenção concluída'}</b><br>${next?'Seu histórico foi preservado. Você pode iniciar a próxima etapa.':'Este ciclo de manutenção pode ser repetido enquanto continuar adequado.'}</div><button id="review-next" class="btn-backup" style="width:100%;margin-top:14px">${next?'Iniciar próximo bloco':'Continuar manutenção'}</button>`;
+  el('#review-next').onclick=()=>{const pos=loadRepacePosition();if(next){pos.blockId=next.id;pos.week=1;}else{generatedTrainingKeysForBlock(program,block).forEach(k=>doneSet.delete(k));saveDone();pos.week=1;}pos.dayKey=program.schedule?.selectedDays?.[0]||hojeKey();saveRepacePosition(pos);fecharBlockReview();renderAll();};
+}
+function fecharBlockReview(){el('#block-review-sheet').classList.remove('aberto');el('#block-review-backdrop').classList.remove('aberto');pendingBlockReview=null;}
+function programProgressHtml(){
+  const c=generatedContext();if(!c)return'';let total=0,done=0;c.program.blocks.forEach(b=>{if(b.repeatable)return;const st=blockCompletionStats(c.program,b);total+=st.total;done+=st.done;});const pct=total?Math.round(done/total*100):0;const current=blockCompletionStats(c.program,c.block);
+  return `<div class="program-progress-card"><div class="progress-card-head"><span>Seu progresso</span><b>${c.block.repeatable?'Manutenção':pct+'%'}</b></div><div class="progress-big">Bloco ${c.block.number} de ${c.program.blocks.length} · Semana ${c.week.number} de ${c.block.weeks.length}</div><div class="progresso-track"><span style="width:${c.block.repeatable?current.pct:pct}%"></span></div><small>${doneSet.size} sessões marcadas como concluídas neste dispositivo${c.block.repeatable?' · ciclo contínuo':''}</small></div>`;
+}
+function blockReviewHistoryHtml(){
+  const p=loadRepaceProgram(),rows=blockReviews.filter(r=>!p||r.programId===p.id).sort((a,b)=>new Date(b.date)-new Date(a.date));if(!rows.length)return'';
+  return `<div class="secao-titulo">Histórico de blocos</div><div class="peso-lista">${rows.map(r=>`<div class="peso-item"><div class="peso-item-info"><span class="peso-item-data">B${r.blockNumber} · ${r.blockName}</span><span class="peso-item-valor">${r.adherence} · recuperação ${r.recovery}${r.weight?' · '+formatarPeso(r.weight)+' kg':''}</span></div></div>`).join('')}</div>`;
+}
+
+el('#block-review-fechar').addEventListener('click',fecharBlockReview);
+el('#block-review-backdrop').addEventListener('click',fecharBlockReview);
 
 /* ---------------------- init ---------------------- */
 
