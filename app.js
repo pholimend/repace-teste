@@ -1458,131 +1458,134 @@ const ONBOARDING_STEPS = [
 ];
 
 
-/* ---------------------- Fase 3 — Motor REPACE ---------------------- */
-const REPACE_ENGINE_VERSION = 1;
+/* ---------------------- Fase 4.1 — Motor REPACE v2 ---------------------- */
+const REPACE_ENGINE_VERSION = 2;
 
+/* O motor trabalha com famílias de exercícios por ambiente e por etapa. A ideia não é
+   trocar tudo a cada bloco, mas manter padrões motores e variar exercícios/volume de forma planejada. */
 const EXERCISE_LIBRARY = {
   academia: {
-    fullA: [
-      ['Leg press 45°',3,'8–12'],['Supino reto (máquina ou halteres)',3,'8–12'],['Puxada frente',3,'8–12'],['Cadeira flexora',2,'10–15'],['Elevação lateral',2,'12–15'],['Prancha abdominal',3,'30–45s']
-    ],
-    fullB: [
-      ['Terra romeno com halteres',3,'8–12'],['Remada sentada',3,'8–12'],['Desenvolvimento de ombros',3,'8–12'],['Cadeira extensora',2,'10–15'],['Rosca direta',2,'10–15'],['Panturrilha',3,'12–20']
-    ],
-    upper: [
-      ['Supino reto',3,'6–10'],['Puxada frente',3,'6–10'],['Remada sentada',3,'8–12'],['Desenvolvimento de ombros',2,'8–12'],['Elevação lateral',2,'12–15'],['Tríceps na polia',2,'10–15'],['Rosca direta',2,'10–15']
-    ],
-    lower: [
-      ['Agachamento no smith ou leg press',3,'6–10'],['Terra romeno',3,'8–12'],['Cadeira extensora',2,'10–15'],['Cadeira flexora',2,'10–15'],['Elevação pélvica',3,'8–12'],['Panturrilha',3,'12–20'],['Prancha',3,'30–60s']
-    ],
+    adaptA:[['Leg press 45°',2,'12–15'],['Supino reto (máquina)',2,'12–15'],['Puxada frente (pulley, pegada aberta)',2,'12–15'],['Cadeira extensora',2,'12–15'],['Remada sentada (máquina)',2,'12–15'],['Elevação lateral (halteres leves)',2,'12–15'],['Prancha abdominal',2,'20–30s']],
+    adaptB:[['Mesa/cadeira flexora',2,'12–15'],['Supino inclinado (máquina)',2,'12–15'],['Remada baixa',2,'12–15'],['Elevação pélvica',2,'12–15'],['Desenvolvimento (máquina)',2,'12–15'],['Panturrilha',2,'15–20'],['Dead bug',2,'8–10/lado']],
+    baseA:[['Leg press 45°',3,'10–12'],['Supino com halteres',3,'8–12'],['Puxada frente',3,'8–12'],['Terra romeno com halteres',3,'10–12'],['Elevação lateral',2,'12–15'],['Prancha',3,'30–45s']],
+    baseB:[['Agachamento no smith',3,'8–12'],['Supino inclinado (máquina)',3,'8–12'],['Remada sentada',3,'8–12'],['Cadeira flexora',3,'10–15'],['Rosca direta',2,'10–15'],['Panturrilha',3,'12–20']],
+    buildA:[['Agachamento no smith ou hack',3,'8–10'],['Supino reto',3,'6–10'],['Puxada frente',3,'8–12'],['Terra romeno',3,'8–10'],['Elevação lateral',3,'12–15'],['Tríceps na polia',2,'10–15']],
+    buildB:[['Leg press 45°',3,'8–12'],['Supino inclinado com halteres',3,'8–12'],['Remada articulada',3,'8–12'],['Mesa flexora',3,'10–12'],['Desenvolvimento de ombros',2,'8–12'],['Rosca direta',2,'10–15']],
+    progressA:[['Agachamento no smith/hack',4,'6–10'],['Supino reto',4,'6–10'],['Puxada frente',3,'6–10'],['Terra romeno',3,'8–10'],['Elevação lateral',3,'12–15'],['Prancha',3,'40–60s']],
+    progressB:[['Leg press 45°',4,'8–10'],['Supino inclinado',3,'8–10'],['Remada articulada',4,'6–10'],['Cadeira flexora',3,'8–12'],['Desenvolvimento',3,'8–10'],['Panturrilha',3,'12–20']],
+    maintainA:[['Agachamento no smith ou leg press',3,'6–10'],['Supino reto',3,'6–10'],['Puxada frente',3,'6–10'],['Terra romeno',3,'8–12'],['Elevação lateral',2,'12–15'],['Prancha',2,'30–60s']],
+    maintainB:[['Leg press ou hack',3,'8–12'],['Supino inclinado',3,'8–12'],['Remada sentada',3,'8–12'],['Mesa flexora',3,'10–15'],['Desenvolvimento',2,'8–12'],['Rosca + tríceps',2,'10–15']],
+    upperA:[['Supino reto',3,'6–10'],['Puxada frente',3,'6–10'],['Remada sentada',3,'8–12'],['Desenvolvimento',2,'8–12'],['Elevação lateral',2,'12–15'],['Tríceps',2,'10–15'],['Rosca',2,'10–15']],
+    upperB:[['Supino inclinado',3,'8–12'],['Remada articulada',3,'6–10'],['Puxada neutra',3,'8–12'],['Desenvolvimento com halteres',2,'8–12'],['Crucifixo inverso',2,'12–15'],['Tríceps',2,'10–15'],['Rosca martelo',2,'10–15']],
+    lowerA:[['Agachamento smith/hack',3,'6–10'],['Terra romeno',3,'8–12'],['Cadeira extensora',2,'10–15'],['Cadeira flexora',2,'10–15'],['Panturrilha',3,'12–20'],['Prancha',3,'30–60s']],
+    lowerB:[['Leg press',3,'8–12'],['Elevação pélvica',3,'8–12'],['Afundo',2,'8–12/lado'],['Mesa flexora',3,'10–15'],['Panturrilha',3,'12–20'],['Dead bug',3,'8–12/lado']]
   },
   'academia-limitada': {
-    fullA: [['Agachamento goblet',3,'8–12'],['Supino com halteres',3,'8–12'],['Remada unilateral',3,'8–12'],['Terra romeno com halteres',2,'10–12'],['Elevação lateral',2,'12–15'],['Prancha',3,'30–45s']],
-    fullB: [['Afundo com halteres',3,'8–12'],['Desenvolvimento com halteres',3,'8–12'],['Remada com halteres',3,'8–12'],['Elevação pélvica',2,'10–15'],['Rosca direta',2,'10–15'],['Panturrilha',3,'12–20']],
+    adaptA:[['Agachamento goblet',2,'12–15'],['Supino com halteres',2,'12–15'],['Remada unilateral',2,'12–15'],['Ponte de glúteos',2,'12–15'],['Elevação lateral',2,'12–15'],['Prancha',2,'20–30s']],
+    adaptB:[['Afundo assistido',2,'10–12/lado'],['Desenvolvimento com halteres',2,'12–15'],['Remada com halteres',2,'12–15'],['Terra romeno com halteres',2,'12–15'],['Rosca direta',2,'12–15'],['Panturrilha',2,'15–20']],
+    baseA:[['Agachamento goblet',3,'8–12'],['Supino com halteres',3,'8–12'],['Remada unilateral',3,'8–12'],['Terra romeno com halteres',3,'8–12'],['Elevação lateral',2,'12–15'],['Prancha',3,'30–45s']],
+    baseB:[['Afundo com halteres',3,'8–12'],['Desenvolvimento com halteres',3,'8–12'],['Remada com halteres',3,'8–12'],['Elevação pélvica',3,'10–15'],['Rosca direta',2,'10–15'],['Panturrilha',3,'12–20']],
   },
   casa: {
-    fullA: [['Agachamento com peso corporal/mochila',3,'10–15'],['Flexão de braços',3,'6–15'],['Remada com mochila/elástico',3,'10–15'],['Ponte de glúteos',3,'12–20'],['Elevação lateral com elástico/garrafas',2,'12–20'],['Prancha',3,'30–45s']],
-    fullB: [['Afundo estacionário',3,'8–12'],['Flexão inclinada ou tradicional',3,'6–15'],['Terra romeno com mochila',3,'10–15'],['Remada unilateral com mochila',3,'10–15'],['Rosca com elástico/mochila',2,'10–15'],['Panturrilha unilateral',3,'12–20']],
+    adaptA:[['Agachamento para banco',2,'12–15'],['Flexão inclinada',2,'8–15'],['Remada com mochila/elástico',2,'12–15'],['Ponte de glúteos',2,'15–20'],['Prancha',2,'20–30s']],
+    adaptB:[['Afundo assistido',2,'8–12/lado'],['Flexão inclinada',2,'8–15'],['Terra romeno com mochila',2,'12–15'],['Remada unilateral com mochila',2,'12–15'],['Panturrilha',2,'15–20']],
+    baseA:[['Agachamento com mochila',3,'10–15'],['Flexão',3,'6–15'],['Remada com mochila/elástico',3,'10–15'],['Terra romeno com mochila',3,'10–15'],['Prancha',3,'30–45s']],
+    baseB:[['Afundo estacionário',3,'8–12/lado'],['Flexão',3,'6–15'],['Remada unilateral',3,'10–15'],['Ponte de glúteos unilateral',3,'10–15'],['Panturrilha unilateral',3,'12–20']],
   }
 };
 
 function makeExercise([nome,series,reps], effort='RIR 2–3'){
-  return { id: gerarId('ex'), name:nome, prescription:{series,reps,effort,rest:'60–120s'} };
+  return { id:gerarId('ex'), name:nome, prescription:{series,reps,effort,rest:'60–120s'} };
 }
-function sessionStrength(title, list, effort='RIR 2–3'){
-  return { id:gerarId('sess'), type:'strength', title, warmup:'5–10 min de mobilidade/cardio leve + séries de aproximação', exercises:list.map(x=>makeExercise(x,effort)) };
+function sessionStrength(title,list,effort='RIR 2–3',note=''){
+  return {id:gerarId('sess'),type:'strength',title,warmup:'5–10 min de mobilidade/cardio leve + séries de aproximação',exercises:list.map(x=>makeExercise(x,effort)),note};
 }
-function sessionRun(level, week, focus='base'){
-  if(level==='comecar'){
-    const stage=Math.min(3,Math.max(1,Math.ceil(week/2)));
-    const prescriptions={1:'1 min trote leve + 2 min caminhada × 6–8',2:'1 min trote leve + 1 min caminhada × 8–10',3:'2 min trote leve + 1 min caminhada × 6–8'};
-    return { id:gerarId('sess'), type:'run', title:'Corrida — adaptação', rpe:'≤6/10', prescription:prescriptions[stage], warmup:'5 min caminhada leve', cooldown:'5 min caminhada leve' };
+function getList(lib,key,fallback){ return lib[key] || lib[fallback] || EXERCISE_LIBRARY.academia[key] || EXERCISE_LIBRARY.academia[fallback]; }
+function sessionRun(level,week,stage='base',slot=0){
+  if(level==='comecar' || level==='nao'){
+    const map={adapt:['1 min trote leve + 2 min caminhada × 6–8','1 min trote + 1 min caminhada × 8–10'],base:['2 min trote + 1 min caminhada × 7–9','3 min trote + 1 min caminhada × 6–8'],build:['5 min trote + 1–2 min caminhada × 4–5','20–30 min contínuos leves, caminhando se necessário'],progress:['25–35 min contínuos leves','6 × 2 min moderado / 2 min leve'],maintenance:['30–40 min leve','6 × 2–3 min moderado / 2 min leve']};
+    const arr=map[stage]||map.base; return {id:gerarId('sess'),type:'run',title:slot===1&&stage!=='adapt'?'Corrida — estímulo controlado':'Corrida — progressão',rpe:slot===1&&stage!=='adapt'?'6–7/10':'≤6/10',prescription:arr[Math.min(slot,arr.length-1)],warmup:'5 min caminhada/trote leve',cooldown:'5 min leve'};
   }
-  if(level==='iniciante') return { id:gerarId('sess'), type:'run', title:'Corrida leve', rpe:'5–6/10', prescription: week<=2?'20–25 min leve':'25–35 min leve', warmup:'5 min caminhada/trote leve', cooldown:'5 min leve' };
-  return { id:gerarId('sess'), type:'run', title:focus==='quality'?'Corrida — estímulo controlado':'Corrida leve', rpe:focus==='quality'?'6–7/10':'5–6/10', prescription:focus==='quality'?'6 × 2 min moderado / 2 min leve':'30–45 min leve', warmup:'8–10 min leve', cooldown:'5–10 min leve' };
+  const regular=level==='regular';
+  const duration={adapt:'20–30 min leve',base:'30–40 min leve',build:'35–50 min leve',progress:'40–55 min leve',maintenance:'35–50 min leve'}[stage]||'30–40 min leve';
+  if(slot===1 && ['build','progress','maintenance'].includes(stage)) return {id:gerarId('sess'),type:'run',title:'Corrida — estímulo controlado',rpe:'6–7/10',prescription:regular?'6–8 × 2–3 min moderado / 2 min leve':'5–6 × 2 min moderado / 2 min leve',warmup:'8–10 min leve',cooldown:'5–10 min leve'};
+  return {id:gerarId('sess'),type:'run',title:'Corrida leve',rpe:'5–6/10',prescription:duration,warmup:'5–10 min leve',cooldown:'5 min leve'};
 }
-function evenlyPickDays(days, count){
-  const order=['seg','ter','qua','qui','sex','sab','dom'];
-  const src=order.filter(d=>days.includes(d));
-  if(!src.length) return order.slice(0,count);
-  if(count>=src.length) return src.slice(0,count);
-  if(count===1) return [src[Math.floor(src.length/2)]];
-  const out=[];
-  for(let i=0;i<count;i++) out.push(src[Math.round(i*(src.length-1)/(count-1))]);
-  return [...new Set(out)].slice(0,count);
+function evenlyPickDays(days,count){
+  const order=['seg','ter','qua','qui','sex','sab','dom']; const src=order.filter(d=>days.includes(d));
+  if(!src.length) return order.slice(0,count); if(count>=src.length) return src.slice(); if(count===1)return[src[Math.floor(src.length/2)]];
+  const out=[]; for(let i=0;i<count;i++) out.push(src[Math.round(i*(src.length-1)/(count-1))]); return [...new Set(out)].slice(0,count);
 }
 function determinePlanFamily(a){
-  const runWanted=a.corrida!=='nao' || ['hibrido','corrida','condicionamento'].includes(a.objetivo);
-  if(a.objetivo==='corrida') return 'run-focus';
-  if(runWanted) return 'hybrid';
-  if(a.experiencia==='iniciante' || Number(a.diasSemana)<=3) return 'full-body';
-  return 'upper-lower';
+  const runWanted=a.corrida!=='nao'||['hibrido','corrida','condicionamento'].includes(a.objetivo);
+  if(a.objetivo==='corrida')return'run-focus'; if(runWanted)return'hybrid'; if(a.experiencia==='iniciante'||Number(a.diasSemana)<=3)return'full-body'; return'upper-lower';
 }
 function determineStructure(a){
-  const days=Math.max(2,Math.min(6,Number(a.diasSemana)||3));
-  const family=determinePlanFamily(a);
-  let strength=3, run=0;
-  if(family==='full-body') strength=Math.min(3,days);
-  if(family==='upper-lower') strength=Math.min(days,4);
-  if(family==='hybrid'){
-    if(days<=3){strength=2;run=1;} else if(days===4){strength=2;run=2;} else {strength=3;run=Math.min(2,days-3);}
-  }
-  if(family==='run-focus'){
-    run=days<=3?2:Math.min(4,days-2); strength=Math.max(1,days-run);
-  }
-  const needsAdapt= a.experiencia==='iniciante' || Number(a.pausaDias)>=21 || a.seguranca==='destreinado';
-  return {family,days,strength,run,needsAdapt};
+  const availability=Math.max(2,Math.min(6,Number(a.diasSemana)||3)); const family=determinePlanFamily(a); const pause=Number(a.pausaDias)||0;
+  const severeDetrain=pause>=180 || (a.experiencia==='iniciante'&&pause>=60); const needsAdapt=a.experiencia==='iniciante'||pause>=21||a.seguranca==='destreinado';
+  let targetStrength=3,targetRun=0;
+  if(family==='full-body')targetStrength=Math.min(availability,a.experiencia==='avancado'?4:3);
+  if(family==='upper-lower')targetStrength=Math.min(availability,4);
+  if(family==='hybrid'){ if(availability<=3){targetStrength=2;targetRun=1;} else if(availability===4){targetStrength=2;targetRun=2;} else {targetStrength=3;targetRun=Math.min(2,availability-3);} }
+  if(family==='run-focus'){targetRun=availability<=3?2:Math.min(4,availability-2);targetStrength=Math.max(1,availability-targetRun);}
+  // Após pausas longas, a Fundação pode começar com frequência menor e crescer depois.
+  let foundationStrength=targetStrength,foundationRun=targetRun;
+  if(severeDetrain){foundationStrength=Math.min(targetStrength,2); foundationRun=Math.min(targetRun,1);}
+  else if(needsAdapt&&availability>=4&&family==='full-body') foundationStrength=Math.min(targetStrength,3);
+  return {family,availability,targetStrength,targetRun,foundationStrength,foundationRun,needsAdapt,severeDetrain,pause};
 }
-function familyLabel(f){ return ({'full-body':'Full Body','upper-lower':'Upper / Lower','hybrid':'Híbrido — força + corrida','run-focus':'Corrida + força de suporte'})[f]||f; }
-
+function familyLabel(f){return({'full-body':'Full Body','upper-lower':'Upper / Lower','hybrid':'Híbrido — força + corrida','run-focus':'Corrida + força de suporte'})[f]||f;}
+function determineBlocks(a,s){
+  const defs=[];
+  if(s.needsAdapt) defs.push({name:'Fundação',stage:'adapt',weeks:s.severeDetrain?6:4,focus:s.severeDetrain?'Readaptação gradual após pausa prolongada: reconstruir tolerância, técnica e rotina.':'Adaptação técnica, tolerância ao treino e construção de rotina.',effort:'RIR 3–4',strength:s.foundationStrength,run:s.foundationRun});
+  defs.push({name:s.family==='run-focus'?'Base aeróbia':'Base',stage:'base',weeks:s.needsAdapt?4:6,focus:s.family==='run-focus'?'Construir base aeróbia e força de suporte.':'Consolidar padrões de movimento e criar base de volume.',effort:'RIR 2–3',strength:s.targetStrength,run:s.targetRun});
+  // Perfis destreinados/iniciantes recebem uma ponte adicional; intermediários/avançados pulam quando não necessária.
+  if(s.severeDetrain||a.experiencia==='iniciante') defs.push({name:'Construção',stage:'build',weeks:5,focus:'Aumentar gradualmente volume, capacidade de trabalho e autonomia.',effort:'RIR 2–3',strength:s.targetStrength,run:s.targetRun});
+  if(a.experiencia!=='iniciante'||['hipertrofia','corrida','hibrido','condicionamento'].includes(a.objetivo)) defs.push({name:'Desenvolvimento',stage:'build',weeks:a.experiencia==='avancado'?6:5,focus:s.family==='run-focus'?'Expandir volume de corrida e introduzir estímulos controlados.':'Desenvolver força/hipertrofia/condicionamento com progressão planejada.',effort:'RIR 1–3',strength:s.targetStrength,run:s.targetRun});
+  defs.push({name:'Progressão',stage:'progress',weeks:a.experiencia==='avancado'?6:5,focus:'Consolidar a progressão com estímulo mais específico, sem perder técnica e recuperação.',effort:'RIR 1–2',strength:s.targetStrength,run:s.targetRun});
+  defs.push({name:'Manutenção',stage:'maintenance',weeks:4,repeatable:true,focus:'Rotina sustentável de longo prazo. Ao concluir a semana 4, este ciclo pode ser repetido enquanto continuar adequado ao objetivo e à recuperação.',effort:'RIR 2–3',strength:s.targetStrength,run:s.targetRun});
+  return defs;
+}
+function strengthSessionFor(lib,family,stage,index,effort){
+  if(family==='upper-lower' && lib.upperA){ const keys=['upperA','lowerA','upperB','lowerB']; const key=keys[index%keys.length]; return sessionStrength(key.startsWith('upper')?'Upper — membros superiores':'Lower — membros inferiores',getList(lib,key,'baseA'),effort); }
+  const stageKeys={adapt:['adaptA','adaptB'],base:['baseA','baseB'],build:['buildA','buildB'],progress:['progressA','progressB'],maintenance:['maintainA','maintainB']};
+  const keys=stageKeys[stage]||stageKeys.base; const key=keys[index%2];
+  const fallback=index%2?'baseB':'baseA'; const title=stage==='adapt'?`Full Body ${index%2?'B':'A'} — adaptação`:`Full Body ${index%2?'B':'A'}`;
+  return sessionStrength(title,getList(lib,key,fallback),effort,stage==='maintenance'?'Mantenha a rotina sustentável; progrida apenas quando houver margem técnica e recuperação.':'');
+}
+function distributeSessions(availableDays,strengthCount,runCount){
+  const selected=[...availableDays]; const total=Math.min(selected.length,strengthCount+runCount); const active=evenlyPickDays(selected,total);
+  let strengthDays=[],runDays=[];
+  // Alterna modalidades no híbrido; em força pura espalha os dias ativos.
+  if(runCount>0){
+    active.forEach((d,i)=>{ if(strengthDays.length<strengthCount && (i%2===0 || runDays.length>=runCount)) strengthDays.push(d); else if(runDays.length<runCount) runDays.push(d); else strengthDays.push(d); });
+    while(strengthDays.length<strengthCount){const d=active.find(x=>!strengthDays.includes(x)&&!runDays.includes(x));if(!d)break;strengthDays.push(d);}
+    while(runDays.length<runCount){const d=active.find(x=>!strengthDays.includes(x)&&!runDays.includes(x));if(!d)break;runDays.push(d);}
+  } else strengthDays=active.slice(0,strengthCount);
+  return {strengthDays,runDays,active};
+}
 function generateRepaceProgram(profile){
-  const a=profile.answers||{};
-  const s=determineStructure(a);
-  const safetyHold=['dor-limitacao','doenca-recente'].includes(a.seguranca);
-  const available=(a.diasDisponiveis||[]);
-  const chosen=evenlyPickDays(available,s.days);
-  const strengthDays=evenlyPickDays(chosen,s.strength);
-  const runDays=chosen.filter(d=>!strengthDays.includes(d)).slice(0,s.run);
-  while(runDays.length<s.run){
-    const extra=chosen.find(d=>!runDays.includes(d) && !strengthDays.includes(d));
-    if(!extra) break; runDays.push(extra);
-  }
-  const lib=EXERCISE_LIBRARY[a.ambiente]||EXERCISE_LIBRARY.academia;
-  const blocks=[];
-  const blockDefs=[];
-  if(s.needsAdapt) blockDefs.push({name:'Fundação',weeks:4,focus:'Adaptação técnica e construção de rotina',effort:'RIR 3–4'});
-  blockDefs.push({name:s.family==='run-focus'?'Base aeróbia':'Desenvolvimento',weeks:6,focus:s.family==='run-focus'?'Construir volume aeróbio com força de suporte':'Progressão consistente de força, volume e condicionamento',effort:'RIR 2–3'});
-  blockDefs.push({name:'Progressão',weeks:6,focus:s.family==='run-focus'?'Consolidar corrida e introduzir estímulos controlados':'Aumentar gradualmente a dificuldade mantendo técnica e recuperação',effort:'RIR 1–3'});
-
+  const a=profile.answers||{}; const s=determineStructure(a); const safetyHold=['dor-limitacao','doenca-recente'].includes(a.seguranca);
+  const order=['seg','ter','qua','qui','sex','sab','dom']; const available=order.filter(d=>(a.diasDisponiveis||[]).includes(d));
+  const selectedDays=available.length?available:order.slice(0,s.availability); const lib=EXERCISE_LIBRARY[a.ambiente]||EXERCISE_LIBRARY.academia;
+  const blockDefs=determineBlocks(a,s),blocks=[];
   blockDefs.forEach((bd,bi)=>{
-    const weeks=[];
+    const dist=distributeSessions(selectedDays,bd.strength,bd.run); const weeks=[];
     for(let w=1;w<=bd.weeks;w++){
-      const days=chosen.map((day,di)=>{
-        let session={ id:gerarId('sess'), type:'rest', title:'Recuperação / atividade leve', note:'Sem sessão estruturada neste dia.' };
-        if(strengthDays.includes(day)){
-          const idx=strengthDays.indexOf(day);
-          if(s.family==='upper-lower' && lib.upper && lib.lower) session=sessionStrength(idx%2===0?'Upper — membros superiores':'Lower — membros inferiores',idx%2===0?lib.upper:lib.lower,bd.effort);
-          else session=sessionStrength(idx%2===0?'Full Body A':'Full Body B',idx%2===0?lib.fullA:lib.fullB,bd.effort);
-        } else if(runDays.includes(day)){
-          const focus=(bi>=2 && a.corrida==='regular' && runDays.indexOf(day)===1)?'quality':'base';
-          session=sessionRun(a.corrida==='nao'?'comecar':a.corrida,w,focus);
-        }
-        return { id:`${day}-${w}`, weekday:day, session };
-      });
-      weeks.push({ id:`w${w}`, number:w, days });
+      const days=selectedDays.map(day=>{
+        let session={id:gerarId('sess'),type:'rest',title:'Recuperação programada',note:'Dia disponível mantido livre neste bloco para favorecer adaptação e recuperação. A frequência pode aumentar nos blocos seguintes.'};
+        if(dist.strengthDays.includes(day)){const idx=dist.strengthDays.indexOf(day);session=strengthSessionFor(lib,s.family,bd.stage,idx,bd.effort);}
+        else if(dist.runDays.includes(day)){const idx=dist.runDays.indexOf(day);session=sessionRun(a.corrida, w, bd.stage, idx);}
+        return{id:`${day}-${w}`,weekday:day,session};
+      }); weeks.push({id:`w${w}`,number:w,days});
     }
-    blocks.push({ id:`b${bi+1}`, number:bi+1, name:bd.name, info:bd.focus, weeks });
+    blocks.push({id:`b${bi+1}`,number:bi+1,name:bd.name,stage:bd.stage,info:bd.focus,repeatable:!!bd.repeatable,prescription:{strengthSessions:bd.strength,runSessions:bd.run,availableDays:selectedDays.length},weeks});
   });
-
-  const status=safetyHold?'attention':'ready';
-  return {
-    id:gerarId('program'), schemaVersion:1, engineVersion:REPACE_ENGINE_VERSION, source:'generated', status,
-    name:`Plano ${familyLabel(s.family)}`, goal:a.objetivo, family:s.family,
-    summary:{ daysPerWeek:s.days, strengthSessions:s.strength, runSessions:s.run, sessionMinutes:Number(a.duracao)||60, environment:a.ambiente, adaptation:s.needsAdapt },
-    schedule:{ selectedDays:chosen, strengthDays, runDays }, blocks,
-    safety: safetyHold ? { level:'attention', message:a.seguranca==='dor-limitacao'?'Há dor/lesão/limitação atual informada. O programa foi apenas estruturado e não deve ser usado como liberação para treinar; procure avaliação adequada antes de progredir.':'Há recuperação de doença recente informada. Retome apenas quando estiver recuperado e, se houver sintomas persistentes ou orientação médica específica, siga avaliação profissional.' } : {level:'standard'},
-    createdAt:new Date().toISOString(), profileId:profile.id
-  };
+  return {id:gerarId('program'),schemaVersion:2,engineVersion:REPACE_ENGINE_VERSION,source:'generated',status:safetyHold?'attention':'ready',name:`Plano ${familyLabel(s.family)}`,goal:a.objetivo,family:s.family,
+    summary:{daysPerWeek:selectedDays.length,targetTrainingDays:s.targetStrength+s.targetRun,strengthSessions:s.targetStrength,runSessions:s.targetRun,sessionMinutes:Number(a.duracao)||60,environment:a.ambiente,adaptation:s.needsAdapt,blockCount:blocks.length,maintenance:true},
+    schedule:{selectedDays,availableDays:selectedDays,targetStrengthDays:s.targetStrength,targetRunDays:s.targetRun},blocks,
+    safety:safetyHold?{level:'attention',message:a.seguranca==='dor-limitacao'?'Há dor/lesão/limitação atual informada. O programa foi apenas estruturado e não deve ser usado como liberação para treinar; procure avaliação adequada antes de progredir.':'Há recuperação de doença recente informada. Retome apenas quando estiver recuperado e, se houver sintomas persistentes ou orientação médica específica, siga avaliação profissional.'}:{level:'standard'},
+    createdAt:new Date().toISOString(),profileId:profile.id};
 }
 function saveGeneratedProgram(program){ localStorage.setItem(REPACE_PROGRAM_KEY,JSON.stringify(program)); }
 function loadRepaceProgram(){ return safeParseJSON(localStorage.getItem(REPACE_PROGRAM_KEY),null); }
@@ -1706,7 +1709,7 @@ function salvarPerfilOnboarding(){
   saveGeneratedProgram(program);
   localStorage.setItem(REPACE_POSITION_KEY, JSON.stringify({ programId: program.id, blockId: program.blocks?.[0]?.id || 'b1', week: 1, dayKey: hojeKey() }));
   const meta=loadRepaceMeta();
-  saveRepaceMeta({...meta,app:'repace',architectureVersion:3,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
+  saveRepaceMeta({...meta,app:'repace',architectureVersion:4,setupStatus:'program-ready',programSource:'generated',engineVersion:REPACE_ENGINE_VERSION});
   fecharOnboardingRepace();
   perfilOrigem='entry';
   mostrarPerfilPronto();
@@ -1722,7 +1725,7 @@ function mostrarPerfilPronto(){
   const a=p.answers||{};
   const program=loadRepaceProgram();
   const generated=program?.source==='generated' && program?.profileId===p.id;
-  const planHtml=generated ? `<div class="perfil-programa-card"><div class="onboarding-kicker">PLANO CRIADO · MOTOR v${program.engineVersion||1}</div><h2>${program.name}</h2><p>${program.blocks.length} blocos · ${program.summary.daysPerWeek} dias por semana</p><div class="profile-summary compact">${programSummaryRows(program).map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${program.summary.adaptation?'<div class="callout"><b>Início com adaptação</b><br>O perfil indicou que vale começar com um bloco de Fundação antes da progressão principal.</div>':''}${program.safety?.level==='attention'?`<div class="callout alerta">${program.safety.message}</div>`:''}<div class="program-block-list">${program.blocks.map(b=>`<div class="program-block-row"><span>B${b.number}</span><div><b>${b.name}</b><small>${b.weeks.length} semanas · ${b.info}</small></div></div>`).join('')}</div><div class="callout"><b>Programa pronto</b><br>Este programa já pode ser aberto na tela de treino. Blocos, semanas e dias serão renderizados diretamente a partir do plano gerado.</div></div>` : `<div class="callout"><b>Programa ainda não gerado</b><br>Edite e salve seu perfil para executar o Motor REPACE.</div>`;
+  const planHtml=generated ? `<div class="perfil-programa-card"><div class="onboarding-kicker">PLANO CRIADO · MOTOR v${program.engineVersion||1}</div><h2>${program.name}</h2><p>${program.blocks.length} blocos · ${program.summary.daysPerWeek} dias por semana</p><div class="profile-summary compact">${programSummaryRows(program).map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${program.summary.adaptation?'<div class="callout"><b>Início com adaptação</b><br>O perfil indicou que vale começar com um bloco de Fundação antes da progressão principal.</div>':''}${program.safety?.level==='attention'?`<div class="callout alerta">${program.safety.message}</div>`:''}<div class="program-block-list">${program.blocks.map(b=>`<div class="program-block-row"><span>B${b.number}</span><div><b>${b.name}</b><small>${b.weeks.length} semanas${b.repeatable?' · ciclo repetível':''} · ${b.info}</small></div></div>`).join('')}</div><div class="callout"><b>Programa pronto</b><br>Este programa já pode ser aberto na tela de treino. Blocos, semanas e dias serão renderizados diretamente a partir do plano gerado.</div></div>` : `<div class="callout"><b>Programa ainda não gerado</b><br>Edite e salve seu perfil para executar o Motor REPACE.</div>`;
   wrap.innerHTML=`<div class="perfil-hero"><div class="onboarding-kicker">PERFIL REPACE</div><h2>${optionLabel(ONBOARDING_STEPS[0],a.objetivo)}</h2><p>${optionLabel(ONBOARDING_STEPS[1],a.experiencia)} · ${a.diasSemana||'—'} dias/semana · ${optionLabel(ONBOARDING_STEPS[4],a.duracao)}</p></div><div class="profile-summary compact">${[['Local',optionLabel(ONBOARDING_STEPS[5],a.ambiente)],['Corrida',optionLabel(ONBOARDING_STEPS[6],a.corrida)],['Pausa',`${a.pausaDias||0} dias`],['Estado',optionLabel(ONBOARDING_STEPS[9],a.seguranca)]].map(r=>`<div><span>${r[0]}</span><b>${r[1]}</b></div>`).join('')}</div>${planHtml}<div class="backup-botoes"><button id="perfil-editar" class="btn-backup">Editar perfil e regenerar</button><button id="perfil-plano-base" class="btn-backup btn-backup-secundario">Começar treino</button></div>`;
   el('#perfil-editar').onclick=()=>{fecharPerfil();abrirOnboardingRepace(true)};
   el('#perfil-plano-base').onclick=()=>{fecharPerfil();entrarNoTreinoRepace()};

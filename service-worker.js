@@ -1,4 +1,4 @@
-const CACHE_NAME = 'repace-v4-dynamic-renderer';
+const CACHE_NAME = 'repace-v4-1-engine-v2';
 const APP_SHELL = [
   './', './index.html', './styles.css?v=4.0', './data.js?v=4.0', './app.js?v=4.0',
   './manifest.webmanifest', './icons/apple-touch-icon.png', './icons/icon-192.png',
